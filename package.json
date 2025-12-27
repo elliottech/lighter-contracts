@@ -1,0 +1,115 @@
+{
+  "name": "lighter-contracts",
+  "version": "1.0.0",
+  "description": "ZkLighter(perps) related contracts and scripts",
+  "scripts": {
+    "build:local": "yarn hardhat --network gethLocalNode compile",
+    "deploy:local": "hardhat run scripts/deploy-evm/deploy.js --network gethLocalNode",
+    "deposit:local": "hardhat run scripts/deploy-evm/deposit.js --network gethLocalNode",
+    "markets:local": "hardhat run scripts/deploy-evm/marketsLocal.js --network gethLocalNode",
+    "abi": "yarn hardhat export-abi",
+    "clean": "yarn hardhat clean",
+    "coverage": "yarn hardhat coverage",
+    "test": "yarn hardhat test --network hardhat --parallel",
+    "lint:check:format": "prettier --check .",
+    "lint:check:solhint": "solhint contracts/**/*.sol",
+    "lint:check:eslint": "eslint . --ext js,ts",
+    "check": "yarn run lint:check:format && yarn run lint:check:solhint && yarn run lint:check:eslint",
+    "lint:fix:format": "prettier --write .",
+    "lint:fix:eslint": "eslint --fix . --ext js",
+    "fix": "yarn run lint:fix:format && yarn runlint:fix:eslint",
+    "smtchecker": "yarn hardhat --config smtchecker-config/hardhat.config.ts compile",
+    "prepare": "yarn husky install"
+  },
+  "lint-staged": {
+    "*.{js,ts}": [
+      "eslint --max-warnings 100 --fix --quiet",
+      "prettier --write"
+    ],
+    "*.sol": [
+      "solhint --fix --quiet",
+      "prettier --write"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elliottech/lighter-contracts.git"
+  },
+  "keywords": [
+    "zklighter"
+  ],
+  "author": "zklighter Team",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/elliottech/lighter-contracts/issues"
+  },
+  "homepage": "https://github.com/elliottech/lighter-contracts#readme",
+  "devDependencies": {
+    "@commitlint/cli": "^17.0.3",
+    "@commitlint/config-conventional": "^17.0.3",
+    "@ethersproject/bignumber": "^5.7.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.9",
+    "@nomicfoundation/hardhat-ethers": "^3.0.9",
+    "@nomicfoundation/hardhat-foundry": "^1.1.3",
+    "@nomicfoundation/hardhat-ignition": "^0.15.11",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.14",
+    "@nomicfoundation/ignition-core": "^0.15.11",
+    "@nomiclabs/hardhat-etherscan": "^3.1.8",
+    "@openzeppelin/hardhat-upgrades": "^2.5.0",
+    "@remix-project/remixd": "^0.6.0",
+    "@safe-global/protocol-kit": "^2.0.0",
+    "@safe-global/safe-core-sdk-types": "^3.0.0",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/chai": "^4.3.1",
+    "@types/lodash": "^4.14.172",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "^16.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.43.0",
+    "@typescript-eslint/parser": "^5.43.0",
+    "chai": "^4.2.0",
+    "cids": "^1.1.9",
+    "dotenv": "^16.0.2",
+    "eslint": "8.27.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.25.4",
+    "eslint-plugin-n": "^16.0.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-promise": "^6.0.0",
+    "eth-ens-namehash": "^2.0.8",
+    "ethers": "6.14.3",
+    "figlet": "^1.5.2",
+    "hardhat": "^2.24.2",
+    "hardhat-abi-exporter": "^2.11.0",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^2.3.0",
+    "hardhat-watcher": "^2.5.0",
+    "husky": "^8.0.2",
+    "inquirer": "^8.0.0",
+    "lint-staged": "^13.1.0",
+    "mocha": "^10.0.0",
+    "mocha-chai-jest-snapshot": "^1.1.4",
+    "prettier": "^2.5.1",
+    "prettier-plugin-solidity": "^1.0.0",
+    "sha256": "^0.2.0",
+    "solc": "^0.8.17",
+    "solhint": "^3.3.6",
+    "solidity-coverage": "^0.8.5",
+    "sync-request": "^6.1.0",
+    "ts-node": "^10.8.1",
+    "typechain": "^8.3.2",
+    "typescript": "^5.0.4",
+    "web3": "^1.6.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.8.0",
+    "@openzeppelin/contracts-upgradeable": "^4.8.0"
+  },
+  "engines": {
+    "node": ">=20.0.0, <21.0.0"
+  }
+}
