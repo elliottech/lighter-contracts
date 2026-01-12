@@ -70,6 +70,12 @@ contract Config {
   /// @dev Min amount of pool shares that can be minted or burned
   uint64 public constant MIN_POOL_SHARES_TO_MINT_OR_BURN = 1;
 
+  /// @dev Max amount of staking shares that can be minted or burned
+  uint64 public constant MAX_STAKING_SHARES_TO_MINT_OR_BURN = 2 ** 60 - 1;
+
+  /// @dev Min amount of staking shares that can be minted or burned
+  uint64 public constant MIN_STAKING_SHARES_TO_MINT_OR_BURN = 1;
+
   /// @dev Expiration timestamp delta for priority request
   /// @dev Priority expiration timestamp should be greater than the operation execution timestamp
   uint256 public constant PRIORITY_EXPIRATION = 14 days;

@@ -45,6 +45,29 @@ contract Faucet {
     }
   }
 
+  // This is actually really useful for MM setup, as without this, we need to mint USDC on perp, wait for account to be created,
+  // create a TMP api key and wait for it to be processed, and transfer the funds from perp to spot.
+  // Code duplication is not an issue as this is internal only.
+  // Kept the past method for backwards compatibility.
+  function mintWithRoute(
+    address[] memory _to,
+    uint16[] memory _assetIndex,
+    uint256[] memory _amount,
+    TxTypes.RouteType[] memory _route
+  ) public onlyMinter {
+    uint256 length = _to.length;
+    require(length == _amount.length);
+    require(length == _assetIndex.length);
+    for (uint256 i = 0; i < length; i += 1) {
+      TxTypes.RouteType dest = _route[i];
+      if (_assetIndex[i] == 1) {
+        zkLighter.deposit{value: _amount[i]}(_to[i], _assetIndex[i], dest, _amount[i]);
+      } else {
+        zkLighter.deposit(_to[i], _assetIndex[i], dest, _amount[i]);
+      }
+    }
+  }
+
   function transfer(address[] memory _to, uint16[] memory _assetIndex, uint256[] memory _amount) public onlyMinter {
     uint256 length = _to.length;
     require(length == _amount.length);

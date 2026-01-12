@@ -890,7 +890,7 @@ describe('ZkLighter Tests', function () {
       // invalid marketIndex
       await expect(zkLighter.connect(receiver1).createOrder(index, 2049, 1, 1, 1, 1)).to.be.revertedWithCustomError(
         additionalZkLighter,
-        'AdditionalZkLighter_InvalidMarketIndex',
+        'AdditionalZkLighter_InvalidMarketType',
       );
     });
 
@@ -970,7 +970,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to create orderbook if market index is spot', async () => {
@@ -980,7 +980,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to create orderbook if quoteMultiplier is invalid', async () => {
@@ -1143,7 +1143,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('ETH/USDC'), serializeCreateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketAssets');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidAssetIndex');
 
       params.rawMarketData.baseAssetIndex = 0n;
       params.rawMarketData.quoteAssetIndex = 1n;
@@ -1171,7 +1171,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('ETH/USDC'), serializeCreateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to create orderbook if market index is perps', async () => {
@@ -1181,7 +1181,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('ETH/USDC'), serializeCreateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to create orderbook if ExtensionMultipliers are invalid', async () => {
@@ -1293,7 +1293,7 @@ describe('ZkLighter Tests', function () {
 
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to update orderbook if market index is spot', async () => {
@@ -1301,7 +1301,7 @@ describe('ZkLighter Tests', function () {
 
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to update orderbook if status is invalid', async () => {
@@ -1421,7 +1421,7 @@ describe('ZkLighter Tests', function () {
 
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to update orderbook if market index is perps', async () => {
@@ -1429,7 +1429,7 @@ describe('ZkLighter Tests', function () {
 
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketType');
     });
 
     it('should fail to update orderbook if status is invalid', async () => {

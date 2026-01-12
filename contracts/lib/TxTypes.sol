@@ -38,6 +38,7 @@ library TxTypes {
   uint8 constant PriorityPubDataTypeL1BurnShares = 48;
   uint8 constant PriorityPubDataTypeL1RegisterAsset = 49;
   uint8 constant PriorityPubDataTypeL1UpdateAsset = 50;
+  uint8 constant PriorityPubDataTypeL1UnstakeAssets = 51;
 
   /// @notice zklighter onchain transaction types
   enum OnChainPubDataType {
@@ -402,6 +403,24 @@ library TxTypes {
       _tx.minL2TransferAmount,
       _tx.minL2WithdrawalAmount,
       _tx.marginMode
+    );
+  }
+
+  struct UnstakeAssets {
+    uint48 accountIndex;
+    uint48 masterAccountIndex;
+    uint48 stakingPoolIndex;
+    uint64 sharesAmount;
+  }
+
+  /// @notice Serialize update asset pubData
+  function writeUnstakeAssetsPubDataForPriorityQueue(UnstakeAssets memory _tx) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(
+      uint8(PriorityPubDataTypeL1UnstakeAssets),
+      _tx.accountIndex,
+      _tx.masterAccountIndex,
+      _tx.stakingPoolIndex,
+      _tx.sharesAmount
     );
   }
 }

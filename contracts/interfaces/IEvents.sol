@@ -62,6 +62,9 @@ interface IEvents {
   /// @notice Event emitted when a new burn shares is created
   event BurnShares(TxTypes.BurnShares params);
 
+  /// @notice Event emitted when a new burn shares is created
+  event UnstakeAssets(TxTypes.UnstakeAssets params);
+
   /// @notice Event emitted when user funds are withdrawn from contract
   event WithdrawPending(address indexed owner, uint16 assetIndex, uint128 baseAmount);
 

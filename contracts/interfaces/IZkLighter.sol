@@ -265,6 +265,12 @@ interface IZkLighter is IEvents {
   /// @param _shareAmount Amount of shares to burn
   function burnShares(uint48 _accountIndex, uint48 _publicPoolIndex, uint64 _shareAmount) external;
 
+  /// @notice Unstake assets from a staking pool
+  /// @param _accountIndex Account index
+  /// @param _stakingPoolIndex Staking pool index
+  /// @param _shareAmount Amount of shares to unstake
+  function unstakeAssets(uint48 _accountIndex, uint48 _stakingPoolIndex, uint64 _shareAmount) external;
+
   /// @notice Withdraws tokens from ZkLighter contract to the owner
   /// @param _owner Account address
   /// @param _assetIndex Asset index

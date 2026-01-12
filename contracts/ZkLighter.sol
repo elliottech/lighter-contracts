@@ -318,6 +318,11 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
+  function unstakeAssets(uint48 _accountIndex, uint48 _stakingPoolIndex, uint64 _shareAmount) external {
+    delegateAdditional();
+  }
+
+  /// @inheritdoc IZkLighter
   function updateStateRoot(StoredBatchInfo calldata _lastStoredBatch, bytes32 _stateRoot, bytes32 _validiumRoot, bytes calldata proof) external {
     delegateAdditional();
   }
