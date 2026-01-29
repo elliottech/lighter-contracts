@@ -39,6 +39,7 @@ library TxTypes {
   uint8 constant PriorityPubDataTypeL1RegisterAsset = 49;
   uint8 constant PriorityPubDataTypeL1UpdateAsset = 50;
   uint8 constant PriorityPubDataTypeL1UnstakeAssets = 51;
+  uint8 constant PriorityPubDataTypeL1SetSystemConfig = 52;
 
   /// @notice zklighter onchain transaction types
   enum OnChainPubDataType {
@@ -356,6 +357,24 @@ library TxTypes {
     buf = abi.encodePacked(uint8(PriorityPubDataTypeL1ChangePubKey), _tx.accountIndex, _tx.masterAccountIndex, _tx.apiKeyIndex, _tx.pubKey);
   }
 
+  struct SetSystemConfig {
+    uint48 liquidityPoolIndex;
+    uint48 stakingPoolIndex;
+    uint48 liquidityPoolCooldownPeriod;
+    uint48 stakingPoolLockupPeriod;
+  }
+
+  /// @notice Serialize create asset pubData
+  function writeSetSystemConfigPubDataForPriorityQueue(SetSystemConfig memory _tx) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(
+      uint8(PriorityPubDataTypeL1SetSystemConfig),
+      _tx.liquidityPoolIndex,
+      _tx.stakingPoolIndex,
+      _tx.liquidityPoolCooldownPeriod,
+      _tx.stakingPoolLockupPeriod
+    );
+  }
+
   struct RegisterAsset {
     uint16 assetIndex; // Asset index of the token being registered
     uint56 extensionMultiplier; // Lighter internal asset extension multiplier
@@ -403,24 +422,6 @@ library TxTypes {
       _tx.minL2TransferAmount,
       _tx.minL2WithdrawalAmount,
       _tx.marginMode
-    );
-  }
-
-  struct UnstakeAssets {
-    uint48 accountIndex;
-    uint48 masterAccountIndex;
-    uint48 stakingPoolIndex;
-    uint64 sharesAmount;
-  }
-
-  /// @notice Serialize update asset pubData
-  function writeUnstakeAssetsPubDataForPriorityQueue(UnstakeAssets memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(
-      uint8(PriorityPubDataTypeL1UnstakeAssets),
-      _tx.accountIndex,
-      _tx.masterAccountIndex,
-      _tx.stakingPoolIndex,
-      _tx.sharesAmount
     );
   }
 }

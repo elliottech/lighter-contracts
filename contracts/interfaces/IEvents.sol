@@ -21,9 +21,6 @@ interface IEvents {
   /// @notice Event emitted when user funds are deposited to a zkLighter account
   event Deposit(uint48 toAccountIndex, address toAddress, uint16 assetIndex, TxTypes.RouteType routeType, uint128 baseAmount);
 
-  /// @notice Event emitted when user requests to change their api public key
-  event ChangePubKey(uint48 accountIndex, uint8 apiKeyIndex, bytes pubKey);
-
   /// @notice Market created event
   event CreateMarket(TxTypes.CreateMarket params, uint8 sizeDecimals, uint8 priceDecimals, bytes32 symbol);
 
@@ -49,21 +46,6 @@ interface IEvents {
 
   /// @notice Market updated event
   event UpdateMarket(TxTypes.UpdateMarket params);
-
-  /// @notice Event emitted when a cancel all orders request is created
-  event CancelAllOrders(uint48 accountIndex);
-
-  /// @notice Event emitted when a withdraw request is created
-  event Withdraw(uint48 accountIndex, uint16 assetIndex, TxTypes.RouteType routeType, uint64 baseAmount);
-
-  /// @notice Event emitted when a new create order is created
-  event CreateOrder(TxTypes.CreateOrder params);
-
-  /// @notice Event emitted when a new burn shares is created
-  event BurnShares(TxTypes.BurnShares params);
-
-  /// @notice Event emitted when a new burn shares is created
-  event UnstakeAssets(TxTypes.UnstakeAssets params);
 
   /// @notice Event emitted when user funds are withdrawn from contract
   event WithdrawPending(address indexed owner, uint16 assetIndex, uint128 baseAmount);

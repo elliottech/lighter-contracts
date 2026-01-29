@@ -93,9 +93,7 @@ export async function withdrawUSDC(zkLighter: Contract, amount: number, token: C
 
   await expect(tx)
     .to.emit(zkLighter, 'NewPriorityRequest')
-    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1Withdraw, pubData, expirationTimestamp)
-    .to.emit(zkLighter, 'Withdraw')
-    .withArgs(index, 3, 0, amount);
+    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1Withdraw, pubData, expirationTimestamp);
   return { tx, pubData };
 }
 
@@ -117,9 +115,7 @@ export async function withdrawNative(zkLighter: Contract, amount: number, sender
 
   await expect(tx)
     .to.emit(zkLighter, 'NewPriorityRequest')
-    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1Withdraw, pubData, expirationTimestamp)
-    .to.emit(zkLighter, 'Withdraw')
-    .withArgs(index, 1, 0, amount);
+    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1Withdraw, pubData, expirationTimestamp);
   return { tx, pubData };
 }
 
@@ -144,9 +140,7 @@ export async function cancelAllOrders(zkLighter: Contract, sender: SignerWithAdd
       PriorityPubDataType.L1CancelAllOrders,
       pubData,
       expirationTimestamp,
-    )
-    .to.emit(zkLighter, 'CancelAllOrders')
-    .withArgs(index);
+    );
   return { tx, pubData };
 }
 
@@ -172,9 +166,7 @@ export async function changePubKey(
 
   await expect(tx)
     .to.emit(zkLighter, 'NewPriorityRequest')
-    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1ChangePubKey, pubData, expirationTimestamp)
-    .to.emit(zkLighter, 'ChangePubKey')
-    .withArgs(index, apiKeyIndex, pubKey);
+    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1ChangePubKey, pubData, expirationTimestamp);
   return { tx, pubData };
 }
 
@@ -206,9 +198,7 @@ export async function createOrder(
 
   await expect(tx)
     .to.emit(zkLighter, 'NewPriorityRequest')
-    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1CreateOrder, pubData, expirationTimestamp)
-    .to.emit(zkLighter, 'CreateOrder')
-    .withArgs([index, index, marketIndex, baseAmount, price, isAsk, orderType]);
+    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1CreateOrder, pubData, expirationTimestamp);
   return { tx, pubData };
 }
 
@@ -234,9 +224,7 @@ export async function burnShares(
 
   await expect(tx)
     .to.emit(zkLighter, 'NewPriorityRequest')
-    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1BurnShares, pubData, expirationTimestamp)
-    .to.emit(zkLighter, 'BurnShares')
-    .withArgs([index, index, poolIndex, shareAmount]);
+    .withArgs(sender.address, nextPriorityRequestId, PriorityPubDataType.L1BurnShares, pubData, expirationTimestamp);
   return { tx, pubData };
 }
 
@@ -991,14 +979,14 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidQuoteMultiplier');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidExtensionMultiplier');
 
       params.rawMarketData.quoteMultiplier = 1_000_000 + 1;
       await expect(
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidQuoteMultiplier');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidExtensionMultiplier');
     });
 
     it('should fail to create orderbook if fees are invalid', async () => {
@@ -1088,7 +1076,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidInterestRate');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidFundingClampsOrInterestRate');
     });
 
     it('should fail to create orderbook if min amounts are invalid', async () => {
@@ -1112,7 +1100,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidOrderQuoteLimit');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketLimits');
     });
   });
 
@@ -1262,7 +1250,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('ETH/USDC'), serializeCreateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidOrderQuoteLimit');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketLimits');
     });
   });
 
@@ -1379,7 +1367,7 @@ describe('ZkLighter Tests', function () {
       params.rawMarketData.interestRate = 1_000_000 + 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidInterestRate');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidFundingClampsOrInterestRate');
     });
 
     it('should fail to update orderbook if min amounts are invalid', async () => {
@@ -1399,7 +1387,7 @@ describe('ZkLighter Tests', function () {
       params.rawMarketData.minQuoteAmount = 2 ** 48 - 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidOrderQuoteLimit');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketLimits');
     });
   });
 
@@ -1467,7 +1455,7 @@ describe('ZkLighter Tests', function () {
       params.rawMarketData.minQuoteAmount = 2 ** 48 - 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdateSpotMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidOrderQuoteLimit');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarketLimits');
     });
   });
 

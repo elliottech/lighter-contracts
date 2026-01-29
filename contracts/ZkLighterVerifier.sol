@@ -35,6 +35,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
   // ------ UPGRADAABLE END ------
 
   uint256 private constant R_MOD = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+  uint256 private constant R_MOD_MINUS_ONE = 21888242871839275222246405745257275088548364400416034343698204186575808495616;
   uint256 private constant P_MOD = 21888242871839275222246405745257275088696311157297823662689037894645226208583;
 
   uint256 private constant G2_SRS_0_X_0 = 11559732032986387107991004021392285783925812861821192530917403151452391805634;
@@ -55,38 +56,42 @@ contract ZkLighterVerifier is IZkLighterVerifier {
   uint256 private constant VK_DOMAIN_SIZE = 33554432;
   uint256 private constant VK_INV_DOMAIN_SIZE = 21888242219518804655518433051623070663413851959604507555939307129453691614729;
   uint256 private constant VK_OMEGA = 19200870435978225707111062059747084165650991997241425080699860725083300967194;
-  uint256 private constant VK_QL_COM_X = 5581791271544411496847124605028844767585649659036207703100440245191710920940;
-  uint256 private constant VK_QL_COM_Y = 6674748637213960220061895188043107154631291924543551171893888675724145347823;
-  uint256 private constant VK_QR_COM_X = 15246696209745175928661117833954123937826285119968120790565334933593251332345;
-  uint256 private constant VK_QR_COM_Y = 14361804357992178688777649174207141186793008066163231826890214813219182470568;
-  uint256 private constant VK_QM_COM_X = 8480115645675888946568218654170934596415164360655258176122322907923301354078;
-  uint256 private constant VK_QM_COM_Y = 8195974333342754377082218801184731462978565212250688515725079355757623648091;
-  uint256 private constant VK_QO_COM_X = 7220427219219384467222395839138258833353431713916238600387593432324233174067;
-  uint256 private constant VK_QO_COM_Y = 15952731771666909438988840932889303062413702727595349990048005178917344080235;
-  uint256 private constant VK_QK_COM_X = 16343606715098365573684489355636139175049283164373106505045439309082409492342;
-  uint256 private constant VK_QK_COM_Y = 15341852038975217185367897199803364342483814158012929460673132589635334801583;
+  uint256 private constant VK_QL_COM_X = 14081437274045419777064638026361752610835655865349919219839958989406497648925;
+  uint256 private constant VK_QL_COM_Y = 7731673641527220708336843525682734032781874359344531680632215584836020920877;
+  uint256 private constant VK_QR_COM_X = 659088901852123117921810192576276756886956887061504871007464744412213266876;
+  uint256 private constant VK_QR_COM_Y = 19607965858162372921217726271066478322927385508433626461728584426675577784560;
+  uint256 private constant VK_QM_COM_X = 5403410699335789910171733010355555489138861225651117979979314218820215436898;
+  uint256 private constant VK_QM_COM_Y = 16001739886959031377211934912931487531156107783184312002157599675983000263668;
+  uint256 private constant VK_QO_COM_X = 3980611815803676973010338424994757636882347380350731156421398597071619194102;
+  uint256 private constant VK_QO_COM_Y = 18453664532872393506419836671303600357306348692881567292887544013887143675000;
+  uint256 private constant VK_QK_COM_X = 10783087259304850590729221878486615388398832931872853145445963641825459637238;
+  uint256 private constant VK_QK_COM_Y = 4694002731735286298366594538684031107908101188785946199820796169628748433283;
 
-  uint256 private constant VK_S1_COM_X = 12618677619789680817813652926515714903230734475497992685436484567843211325378;
-  uint256 private constant VK_S1_COM_Y = 21309159078591326849833386734736292982833205834675026194757621146111555031165;
+  uint256 private constant VK_S1_COM_X = 2496221048609651270893062794997542194020993241075995364765273844809081792380;
+  uint256 private constant VK_S1_COM_Y = 19521544425601606009791101849640788128576429993745892955836134238734261807107;
 
-  uint256 private constant VK_S2_COM_X = 8817544587704900136298565500358768401036304610717527278638366115343887022369;
-  uint256 private constant VK_S2_COM_Y = 18508999220995505544755775402162917137945169358398496296950728703560044983345;
+  uint256 private constant VK_S2_COM_X = 12671912954227183462865611165473052993151474653105571771993172427284610582777;
+  uint256 private constant VK_S2_COM_Y = 7514337564765071926691026473052859900698715295977891476113602573071211356305;
 
-  uint256 private constant VK_S3_COM_X = 1137775606871283754571130576505633591431183710144839361638961815880237131467;
-  uint256 private constant VK_S3_COM_Y = 10209544039772483141247597320239520754995302302136080370913839259798411454056;
+  uint256 private constant VK_S3_COM_X = 6657427481716600344123617102817860721611608052080426149573214797801079116673;
+  uint256 private constant VK_S3_COM_Y = 18990167603593576399981110951480662473853184241715622243674795274569690577307;
 
   uint256 private constant VK_COSET_SHIFT = 5;
 
-  uint256 private constant VK_QCP_0_X = 6250304865452195130215387602020810231297907240530660229949887155775309655962;
-  uint256 private constant VK_QCP_0_Y = 12890913942394550620821310825760956735771311883914750812327302185991672403669;
+  uint256 private constant VK_QCP_0_X = 845939343817853645913817445637130727846789712015507152966250423603844071678;
+  uint256 private constant VK_QCP_0_Y = 15657722211692316677007254553299423650194910463721805536383546431674784438075;
 
-  uint256 private constant VK_INDEX_COMMIT_API0 = 10072969;
+  uint256 private constant VK_INDEX_COMMIT_API_0 = 10073821;
   uint256 private constant VK_NB_CUSTOM_GATES = 1;
 
   // ------------------------------------------------
 
+  // size of the proof without call custom gate
+  uint256 private constant FIXED_PROOF_SIZE = 0x300;
+
   // offset proof
-  uint256 private constant PROOF_L_COM_X = 0x00;
+
+  uint256 private constant PROOF_L_COM_X = 0x0;
   uint256 private constant PROOF_L_COM_Y = 0x20;
   uint256 private constant PROOF_R_COM_X = 0x40;
   uint256 private constant PROOF_R_COM_Y = 0x60;
@@ -94,79 +99,68 @@ contract ZkLighterVerifier is IZkLighterVerifier {
   uint256 private constant PROOF_O_COM_Y = 0xa0;
 
   // h = h_0 + x^{n+2}h_1 + x^{2(n+2)}h_2
-  uint256 private constant PROOF_H_0_X = 0xc0;
-  uint256 private constant PROOF_H_0_Y = 0xe0;
-  uint256 private constant PROOF_H_1_X = 0x100;
-  uint256 private constant PROOF_H_1_Y = 0x120;
-  uint256 private constant PROOF_H_2_X = 0x140;
-  uint256 private constant PROOF_H_2_Y = 0x160;
+  uint256 private constant PROOF_H_0_COM_X = 0xc0;
+  uint256 private constant PROOF_H_0_COM_Y = 0xe0;
+  uint256 private constant PROOF_H_1_COM_X = 0x100;
+  uint256 private constant PROOF_H_1_COM_Y = 0x120;
+  uint256 private constant PROOF_H_2_COM_X = 0x140;
+  uint256 private constant PROOF_H_2_COM_Y = 0x160;
 
-  // wire values at zeta
+  // "evaluations of wire polynomials at zeta
   uint256 private constant PROOF_L_AT_ZETA = 0x180;
   uint256 private constant PROOF_R_AT_ZETA = 0x1a0;
   uint256 private constant PROOF_O_AT_ZETA = 0x1c0;
 
-  //uint256[STATE_WIDTH-1] permutation_polynomials_at_zeta; // Sσ1(zeta),Sσ2(zeta)
+  // S1(zeta),S2(zeta)
   uint256 private constant PROOF_S1_AT_ZETA = 0x1e0; // Sσ1(zeta)
   uint256 private constant PROOF_S2_AT_ZETA = 0x200; // Sσ2(zeta)
 
-  //Bn254.G1Point grand_product_commitment;                 // [z(x)]
+  // [Z]
   uint256 private constant PROOF_GRAND_PRODUCT_COMMITMENT_X = 0x220;
   uint256 private constant PROOF_GRAND_PRODUCT_COMMITMENT_Y = 0x240;
 
   uint256 private constant PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA = 0x260; // z(w*zeta)
-  uint256 private constant PROOF_QUOTIENT_POLYNOMIAL_AT_ZETA = 0x280; // t(zeta)
-  uint256 private constant PROOF_LINEARISED_POLYNOMIAL_AT_ZETA = 0x2a0; // r(zeta)
 
-  // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_X = 0x2c0; // [Wzeta]
-  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_Y = 0x2e0;
+  // Folded proof for the opening of linearised poly, l, r, o, s_1, s_2, qcp
+  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_X = 0x280;
+  uint256 private constant PROOF_BATCH_OPENING_AT_ZETA_Y = 0x2a0;
 
-  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = 0x300;
-  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = 0x320;
+  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_X = 0x2c0;
+  uint256 private constant PROOF_OPENING_AT_ZETA_OMEGA_Y = 0x2e0;
 
-  uint256 private constant PROOF_OPENING_QCP_AT_ZETA = 0x340;
-  uint256 private constant PROOF_COMMITMENTS_WIRES_CUSTOM_GATES = 0x360;
-
-  // -> next part of proof is
-  // [ openings_selector_commits || commitments_wires_commit_api]
+  uint256 private constant PROOF_OPENING_QCP_AT_ZETA = 0x300;
+  uint256 private constant PROOF_BSB_COMMITMENTS = 0x320;
 
   // -------- offset state
 
   // challenges to check the claimed quotient
-  uint256 private constant STATE_ALPHA = 0x00;
+
+  uint256 private constant STATE_ALPHA = 0x0;
   uint256 private constant STATE_BETA = 0x20;
   uint256 private constant STATE_GAMMA = 0x40;
   uint256 private constant STATE_ZETA = 0x60;
-
-  // reusable value
   uint256 private constant STATE_ALPHA_SQUARE_LAGRANGE_0 = 0x80;
-
-  // commitment to H
   uint256 private constant STATE_FOLDED_H_X = 0xa0;
   uint256 private constant STATE_FOLDED_H_Y = 0xc0;
-
-  // commitment to the linearised polynomial
   uint256 private constant STATE_LINEARISED_POLYNOMIAL_X = 0xe0;
   uint256 private constant STATE_LINEARISED_POLYNOMIAL_Y = 0x100;
+  uint256 private constant STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA = 0x120;
+  uint256 private constant STATE_FOLDED_CLAIMED_VALUES = 0x140; // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
+  uint256 private constant STATE_FOLDED_DIGESTS_X = 0x160; // linearised poly, l, r, o, s_1, s_2, qcp
+  uint256 private constant STATE_FOLDED_DIGESTS_Y = 0x180;
+  uint256 private constant STATE_PI = 0x1a0;
+  uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = 0x1c0;
+  uint256 private constant STATE_GAMMA_KZG = 0x1e0;
+  uint256 private constant STATE_SUCCESS = 0x200;
+  uint256 private constant STATE_CHECK_VAR = 0x220; // /!\ this slot is used for debugging only
+  uint256 private constant STATE_LAST_MEM = 0x240;
 
-  // Folded proof for the opening of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_CLAIMED_VALUES = 0x120;
-
-  // folded digests of H, linearised poly, l, r, o, s_1, s_2, qcp
-  uint256 private constant STATE_FOLDED_DIGESTS_X = 0x140;
-  uint256 private constant STATE_FOLDED_DIGESTS_Y = 0x160;
-
-  uint256 private constant STATE_PI = 0x180;
-
-  uint256 private constant STATE_ZETA_POWER_N_MINUS_ONE = 0x1a0;
-
-  uint256 private constant STATE_GAMMA_KZG = 0x1c0;
-
-  uint256 private constant STATE_SUCCESS = 0x1e0;
-  uint256 private constant STATE_CHECK_VAR = 0x200; // /!\ this slot is used for debugging only
-
-  uint256 private constant STATE_LAST_MEM = 0x220;
+  // -------- utils (for Fiat Shamir)
+  uint256 private constant FS_ALPHA = 0x616C706861; // "alpha"
+  uint256 private constant FS_BETA = 0x62657461; // "beta"
+  uint256 private constant FS_GAMMA = 0x67616d6d61; // "gamma"
+  uint256 private constant FS_ZETA = 0x7a657461; // "zeta"
+  uint256 private constant FS_GAMMA_KZG = 0x67616d6d61; // "gamma"
 
   // -------- errors
   uint256 private constant ERROR_STRING_ID = 0x08c379a000000000000000000000000000000000000000000000000000000000; // selector for function Error(string)
@@ -174,11 +168,17 @@ contract ZkLighterVerifier is IZkLighterVerifier {
   // -------- utils (for hash_fr)
   uint256 private constant HASH_FR_BB = 340282366920938463463374607431768211456; // 2**128
   uint256 private constant HASH_FR_ZERO_UINT256 = 0;
-
   uint8 private constant HASH_FR_LEN_IN_BYTES = 48;
   uint8 private constant HASH_FR_SIZE_DOMAIN = 11;
   uint8 private constant HASH_FR_ONE = 1;
   uint8 private constant HASH_FR_TWO = 2;
+
+  // -------- precompiles
+  uint8 private constant SHA2 = 0x2;
+  uint8 private constant MOD_EXP = 0x5;
+  uint8 private constant EC_ADD = 0x6;
+  uint8 private constant EC_MUL = 0x7;
+  uint8 private constant EC_PAIR = 0x8;
 
   /// Verify a Plonk proof.
   /// Reverts if the proof or the public inputs are malformed.
@@ -210,12 +210,12 @@ contract ZkLighterVerifier is IZkLighterVerifier {
 
       // public inputs contribution
       let l_pi := sum_pi_wo_api_commit(public_inputs.offset, public_inputs.length, freeMem)
-      let l_wocommit := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
-      l_pi := addmod(l_wocommit, l_pi, R_MOD)
+      let l_pi_commit := sum_pi_commit(proof.offset, public_inputs.length, freeMem)
+      l_pi := addmod(l_pi_commit, l_pi, R_MOD)
       mstore(add(mem, STATE_PI), l_pi)
 
       compute_alpha_square_lagrange_0()
-      verify_quotient_poly_eval_at_zeta(proof.offset)
+      compute_opening_linearised_polynomial(proof.offset)
       fold_h(proof.offset)
       compute_commitment_linearised_polynomial(proof.offset)
       compute_gamma_kzg(proof.offset)
@@ -232,6 +232,16 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(add(ptError, 0x4), 0x20)
         mstore(add(ptError, 0x24), 0x1d)
         mstore(add(ptError, 0x44), "wrong number of public inputs")
+        revert(ptError, 0x64)
+      }
+
+      /// Called when an exponentiation mod r fails
+      function error_mod_exp() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xc)
+        mstore(add(ptError, 0x44), "error mod exp")
         revert(ptError, 0x64)
       }
 
@@ -279,6 +289,15 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         revert(ptError, 0x64)
       }
 
+      function error_pairing() {
+        let ptError := mload(0x40)
+        mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
+        mstore(add(ptError, 0x4), 0x20)
+        mstore(add(ptError, 0x24), 0xd)
+        mstore(add(ptError, 0x44), "error pairing")
+        revert(ptError, 0x64)
+      }
+
       function error_verify() {
         let ptError := mload(0x40)
         mstore(ptError, ERROR_STRING_ID) // selector for function Error(string)
@@ -311,24 +330,22 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param s number of public inputs
       /// @param p pointer to the public inputs array
       function check_inputs_size(s, p) {
-        let input_checks := 1
         for {
           let i
         } lt(i, s) {
           i := add(i, 1)
         } {
-          input_checks := and(input_checks, lt(calldataload(p), R_MOD))
+          if gt(calldataload(p), R_MOD_MINUS_ONE) {
+            error_inputs_size()
+          }
           p := add(p, 0x20)
-        }
-        if iszero(input_checks) {
-          error_inputs_size()
         }
       }
 
       /// Checks if the proof is of the correct size
       /// @param actual_proof_size size of the proof (not the expected size)
       function check_proof_size(actual_proof_size) {
-        let expected_proof_size := add(0x340, mul(VK_NB_CUSTOM_GATES, 0x60))
+        let expected_proof_size := add(FIXED_PROOF_SIZE, mul(VK_NB_CUSTOM_GATES, 0x60))
         if iszero(eq(actual_proof_size, expected_proof_size)) {
           error_proof_size()
         }
@@ -338,39 +355,41 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param aproof pointer to the beginning of the proof
       /// @dev the 'a' prepending proof is to have a local name
       function check_proof_openings_size(aproof) {
-        let openings_check := 1
-
-        // linearised polynomial at zeta
-        let p := add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
-
-        // quotient polynomial at zeta
-        p := add(aproof, PROOF_QUOTIENT_POLYNOMIAL_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
-
         // PROOF_L_AT_ZETA
-        p := add(aproof, PROOF_L_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        let p := add(aproof, PROOF_L_AT_ZETA)
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
         // PROOF_R_AT_ZETA
         p := add(aproof, PROOF_R_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
         // PROOF_O_AT_ZETA
         p := add(aproof, PROOF_O_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
         // PROOF_S1_AT_ZETA
         p := add(aproof, PROOF_S1_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
         // PROOF_S2_AT_ZETA
         p := add(aproof, PROOF_S2_AT_ZETA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
         // PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA
         p := add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)
-        openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+        if gt(calldataload(p), R_MOD_MINUS_ONE) {
+          error_proof_openings_size()
+        }
 
         // PROOF_OPENING_QCP_AT_ZETA
 
@@ -380,12 +399,10 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         } lt(i, VK_NB_CUSTOM_GATES) {
           i := add(i, 1)
         } {
-          openings_check := and(openings_check, lt(calldataload(p), R_MOD))
+          if gt(calldataload(p), R_MOD_MINUS_ONE) {
+            error_proof_openings_size()
+          }
           p := add(p, 0x20)
-        }
-
-        if iszero(openings_check) {
-          error_proof_openings_size()
         }
       }
       // end checks -------------------------------------------------
@@ -412,10 +429,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let state := mload(0x40)
         let mPtr := add(state, STATE_LAST_MEM)
 
-        // gamma
-        // gamma in ascii is [0x67,0x61,0x6d, 0x6d, 0x61]
-        // (same for alpha, beta, zeta)
-        mstore(mPtr, 0x67616d6d61) // "gamma"
+        mstore(mPtr, FS_GAMMA) // "gamma"
 
         mstore(add(mPtr, 0x20), VK_S1_COM_X)
         mstore(add(mPtr, 0x40), VK_S1_COM_Y)
@@ -455,7 +469,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let size := add(0x2c5, size_pi_in_bytes)
 
         size := add(size, mul(VK_NB_CUSTOM_GATES, 0x40))
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), size, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(l_success) {
           error_verify()
         }
@@ -473,9 +487,9 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
 
         // beta
-        mstore(mPtr, 0x62657461) // "beta"
+        mstore(mPtr, FS_BETA) // "beta"
         mstore(add(mPtr, 0x20), gamma_not_reduced)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0x24, mPtr, 0x20) //0x1b -> 000.."gamma"
         if iszero(l_success) {
           error_verify()
         }
@@ -496,13 +510,13 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let full_size := 0x65 // size("alpha") + 0x20 (previous challenge)
 
         // alpha
-        mstore(mPtr, 0x616C706861) // "alpha"
+        mstore(mPtr, FS_ALPHA) // "alpha"
         let _mPtr := add(mPtr, 0x20)
         mstore(_mPtr, beta_not_reduced)
         _mPtr := add(_mPtr, 0x20)
 
         // Bsb22Commitments
-        let proof_bsb_commitments := add(aproof, PROOF_COMMITMENTS_WIRES_CUSTOM_GATES)
+        let proof_bsb_commitments := add(aproof, PROOF_BSB_COMMITMENTS)
         let size_bsb_commitments := mul(0x40, VK_NB_CUSTOM_GATES)
         calldatacopy(_mPtr, proof_bsb_commitments, size_bsb_commitments)
         _mPtr := add(_mPtr, size_bsb_commitments)
@@ -510,7 +524,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
 
         // [Z], the commitment to the grand product polynomial
         calldatacopy(_mPtr, add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X), 0x40)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1b), full_size, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -529,10 +543,10 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
 
         // zeta
-        mstore(mPtr, 0x7a657461) // "zeta"
+        mstore(mPtr, FS_ZETA) // "zeta"
         mstore(add(mPtr, 0x20), alpha_not_reduced)
-        calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_X), 0xc0)
-        let l_success := staticcall(gas(), 0x2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
+        calldatacopy(add(mPtr, 0x40), add(aproof, PROOF_H_0_COM_X), 0xc0)
+        let l_success := staticcall(gas(), SHA2, add(mPtr, 0x1c), 0xe4, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -573,28 +587,28 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// batch_compute_lagranges_at_z computes [L_0(z), .., L_{n-1}(z)]
       /// @param z point at which the Lagranges are evaluated
       /// @param zpnmo ζⁿ-1
-      /// @param n number of public inputs (number of Lagranges to compute)
+      /// @param n_pub number of public inputs (number of Lagranges to compute)
       /// @param mPtr pointer to which the results are stored
-      function batch_compute_lagranges_at_z(z, zpnmo, n, mPtr) {
+      function batch_compute_lagranges_at_z(z, zpnmo, n_pub, mPtr) {
         let zn := mulmod(zpnmo, VK_INV_DOMAIN_SIZE, R_MOD) // 1/n * (ζⁿ - 1)
 
         let _w := 1
         let _mPtr := mPtr
         for {
           let i := 0
-        } lt(i, n) {
+        } lt(i, n_pub) {
           i := add(i, 1)
         } {
           mstore(_mPtr, addmod(z, sub(R_MOD, _w), R_MOD))
           _w := mulmod(_w, VK_OMEGA, R_MOD)
           _mPtr := add(_mPtr, 0x20)
         }
-        batch_invert(mPtr, n, _mPtr)
+        batch_invert(mPtr, n_pub, _mPtr)
         _mPtr := mPtr
         _w := 1
         for {
           let i := 0
-        } lt(i, n) {
+        } lt(i, n_pub) {
           i := add(i, 1)
         } {
           mstore(_mPtr, mulmod(mulmod(mload(_mPtr), zn, R_MOD), _w, R_MOD))
@@ -648,14 +662,13 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let z := mload(add(state, STATE_ZETA))
         let zpnmo := mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE))
 
-        let p := add(aproof, PROOF_COMMITMENTS_WIRES_CUSTOM_GATES)
+        let p := add(aproof, PROOF_BSB_COMMITMENTS)
 
         let h_fr, ith_lagrange
 
         h_fr := hash_fr(calldataload(p), calldataload(add(p, 0x20)), mPtr)
-        ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, VK_INDEX_COMMIT_API0), mPtr)
+        ith_lagrange := compute_ith_lagrange_at_z(z, zpnmo, add(nb_public_inputs, VK_INDEX_COMMIT_API_0), mPtr)
         pi_commit := addmod(pi_commit, mulmod(h_fr, ith_lagrange, R_MOD), R_MOD)
-        p := add(p, 0x40)
       }
 
       /// Computes L_i(zeta) =  ωⁱ/n * (ζⁿ-1)/(ζ-ωⁱ) where:
@@ -711,7 +724,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         // size domain
         mstore8(add(mPtr, 0x8e), HASH_FR_SIZE_DOMAIN)
 
-        let l_success := staticcall(gas(), 0x2, mPtr, 0x8f, mPtr, 0x20)
+        let l_success := staticcall(gas(), SHA2, mPtr, 0x8f, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -735,7 +748,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore8(add(mPtr, 0x2b), 0x6b)
 
         mstore8(add(mPtr, 0x2c), HASH_FR_SIZE_DOMAIN) // size domain
-        l_success := staticcall(gas(), 0x2, mPtr, 0x2d, mPtr, 0x20)
+        l_success := staticcall(gas(), SHA2, mPtr, 0x2d, mPtr, 0x20)
         if iszero(l_success) {
           error_verify()
         }
@@ -762,14 +775,14 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore8(add(mPtr, 0x4c), HASH_FR_SIZE_DOMAIN) // size domain
 
         let offset := add(mPtr, 0x20)
-        l_success := staticcall(gas(), 0x2, offset, 0x2d, offset, 0x20)
+        l_success := staticcall(gas(), SHA2, offset, 0x2d, offset, 0x20)
         if iszero(l_success) {
           error_verify()
         }
 
         // at this point we have mPtr = [ b1 || b2] where b1 is on 32byes and b2 in 16bytes.
         // we interpret it as a big integer mod r in big endian (similar to regular decimal notation)
-        // the result is then 2**(8*16)*mPtr[32:] + mPtr[32:48]
+        // the result is then 2**(8*16)*mPtr[:32] + mPtr[32:48]
         res := mulmod(mload(mPtr), HASH_FR_BB, R_MOD) // <- res = 2**128 * mPtr[:32]
         let b1 := shr(128, mload(add(mPtr, 0x20))) // b1 <- [0, 0, .., 0 ||  b2[:16] ]
         res := addmod(res, b1, R_MOD)
@@ -809,7 +822,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
 
         // derive a random number. As there is no random generator, we
         // do an FS like challenge derivation, depending on both digests and
-        // ζ to ensure that the prover cannot control the random numger.
+        // ζ to ensure that the prover cannot control the random number.
         // Note: adding the other point ζω is not needed, as ω is known beforehand.
         mstore(mPtr, mload(add(state, STATE_FOLDED_DIGESTS_X)))
         mstore(add(mPtr, 0x20), mload(add(state, STATE_FOLDED_DIGESTS_Y)))
@@ -821,7 +834,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(add(mPtr, 0xe0), calldataload(add(aproof, PROOF_OPENING_AT_ZETA_OMEGA_Y)))
         mstore(add(mPtr, 0x100), mload(add(state, STATE_ZETA)))
         mstore(add(mPtr, 0x120), mload(add(state, STATE_GAMMA_KZG)))
-        let random := staticcall(gas(), 0x2, mPtr, 0x140, mPtr, 0x20)
+        let random := staticcall(gas(), SHA2, mPtr, 0x140, mPtr, 0x20)
         if iszero(random) {
           error_random_generation()
         }
@@ -866,6 +879,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(folded_quotients_y, sub(P_MOD, mload(folded_quotients_y)))
 
         mstore(mPtr, mload(folded_digests))
+
         mstore(add(mPtr, 0x20), mload(add(folded_digests, 0x20)))
         mstore(add(mPtr, 0x40), G2_SRS_0_X_0) // the 4 lines are the canonical G2 point on BN254
         mstore(add(mPtr, 0x60), G2_SRS_0_X_1)
@@ -887,17 +901,17 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       function check_pairing_kzg(mPtr) {
         let state := mload(0x40)
 
-        // TODO test the staticcall using the method from audit_4-5
         let l_success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
+        if iszero(l_success) {
+          error_pairing()
+        }
         let res_pairing := mload(0x00)
-        let s_success := mload(add(state, STATE_SUCCESS))
-        res_pairing := and(and(res_pairing, l_success), s_success)
         mstore(add(state, STATE_SUCCESS), res_pairing)
       }
 
       /// @notice Fold the opening proofs at ζ:
-      /// * at state+state_folded_digest we store: [H] + γ[Linearised_polynomial]+γ²[L] + γ³[R] + γ⁴[O] + γ⁵[S₁] +γ⁶[S₂] + ∑ᵢγ⁶⁺ⁱ[Pi_{i}]
-      /// * at state+state_folded_claimed_values we store: H(ζ) + γLinearised_polynomial(ζ)+γ²L(ζ) + γ³R(ζ)+ γ⁴O(ζ) + γ⁵S₁(ζ) +γ⁶S₂(ζ) + ∑ᵢγ⁶⁺ⁱPi_{i}(ζ)
+      /// * at state+state_folded_digest we store: [Linearised_polynomial]+γ[L] + γ²[R] + γ³[O] + γ⁴[S₁] +γ⁵[S₂] + ∑ᵢγ⁵⁺ⁱ[Pi_{i}]
+      /// * at state+state_folded_claimed_values we store: Linearised_polynomial(ζ)+γL(ζ) + γ²R(ζ)+ γ³O(ζ) + γ⁴S₁(ζ) +γ⁵S₂(ζ) + ∑ᵢγ⁵⁺ⁱPi_{i}(ζ)
       /// @param aproof pointer to the proof
       /// acc_gamma stores the γⁱ
       function fold_state(aproof) {
@@ -910,15 +924,11 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let acc_gamma := l_gamma_kzg
         let state_folded_digests := add(state, STATE_FOLDED_DIGESTS_X)
 
-        mstore(add(state, STATE_FOLDED_DIGESTS_X), mload(add(state, STATE_FOLDED_H_X)))
-        mstore(add(state, STATE_FOLDED_DIGESTS_Y), mload(add(state, STATE_FOLDED_H_Y)))
-        mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), calldataload(add(aproof, PROOF_QUOTIENT_POLYNOMIAL_AT_ZETA)))
+        mstore(state_folded_digests, mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
+        mstore(add(state, STATE_FOLDED_DIGESTS_Y), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
+        mstore(add(state, STATE_FOLDED_CLAIMED_VALUES), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
 
-        point_acc_mul(state_folded_digests, add(state, STATE_LINEARISED_POLYNOMIAL_X), acc_gamma, mPtr)
-        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA), acc_gamma)
-
-        acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
-        point_acc_mul_calldata(add(state, STATE_FOLDED_DIGESTS_X), add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
+        point_acc_mul_calldata(state_folded_digests, add(aproof, PROOF_L_COM_X), acc_gamma, mPtr)
         fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_L_AT_ZETA), acc_gamma)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
@@ -940,14 +950,14 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(mPtr20, VK_S2_COM_Y)
         point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
         fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), add(aproof, PROOF_S2_AT_ZETA), acc_gamma)
-        let poscaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
+        let poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
 
         acc_gamma := mulmod(acc_gamma, l_gamma_kzg, R_MOD)
         mstore(mPtr, VK_QCP_0_X)
         mstore(mPtr20, VK_QCP_0_Y)
         point_acc_mul(state_folded_digests, mPtr, acc_gamma, mPtr40)
-        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), poscaz, acc_gamma)
-        poscaz := add(poscaz, 0x20)
+        fr_acc_mul_calldata(add(state, STATE_FOLDED_CLAIMED_VALUES), poqaz, acc_gamma)
+        poqaz := add(poqaz, 0x20)
       }
 
       /// @notice generate the challenge (using Fiat Shamir) to fold the opening proofs
@@ -955,13 +965,11 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// The process for deriving γ is the same as in derive_gamma but this time the inputs are
       /// in this order (the [] means it's a commitment):
       /// * ζ
-      /// * [H] ( = H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ )
       /// * [Linearised polynomial]
       /// * [L], [R], [O]
       /// * [S₁] [S₂]
       /// * [Pi_{i}] (wires associated to custom gates)
       /// Then there are the purported evaluations of the previous committed polynomials:
-      /// * H(ζ)
       /// * Linearised_polynomial(ζ)
       /// * L(ζ), R(ζ), O(ζ), S₁(ζ), S₂(ζ)
       /// * Pi_{i}(ζ)
@@ -970,51 +978,40 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       function compute_gamma_kzg(aproof) {
         let state := mload(0x40)
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
-        mstore(mPtr, 0x67616d6d61) // "gamma"
+        mstore(mPtr, FS_GAMMA_KZG) // "gamma"
         mstore(add(mPtr, 0x20), mload(add(state, STATE_ZETA)))
-        mstore(add(mPtr, 0x40), mload(add(state, STATE_FOLDED_H_X)))
-        mstore(add(mPtr, 0x60), mload(add(state, STATE_FOLDED_H_Y)))
-        mstore(add(mPtr, 0x80), mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
-        mstore(add(mPtr, 0xa0), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
-        calldatacopy(add(mPtr, 0xc0), add(aproof, PROOF_L_COM_X), 0xc0)
-        mstore(add(mPtr, 0x180), VK_S1_COM_X)
-        mstore(add(mPtr, 0x1a0), VK_S1_COM_Y)
-        mstore(add(mPtr, 0x1c0), VK_S2_COM_X)
-        mstore(add(mPtr, 0x1e0), VK_S2_COM_Y)
+        mstore(add(mPtr, 0x40), mload(add(state, STATE_LINEARISED_POLYNOMIAL_X)))
+        mstore(add(mPtr, 0x60), mload(add(state, STATE_LINEARISED_POLYNOMIAL_Y)))
+        calldatacopy(add(mPtr, 0x80), add(aproof, PROOF_L_COM_X), 0xc0)
+        mstore(add(mPtr, 0x140), VK_S1_COM_X)
+        mstore(add(mPtr, 0x160), VK_S1_COM_Y)
+        mstore(add(mPtr, 0x180), VK_S2_COM_X)
+        mstore(add(mPtr, 0x1a0), VK_S2_COM_Y)
 
-        let offset := 0x200
+        let offset := 0x1c0
 
         mstore(add(mPtr, offset), VK_QCP_0_X)
         mstore(add(mPtr, add(offset, 0x20)), VK_QCP_0_Y)
         offset := add(offset, 0x40)
+        mstore(add(mPtr, offset), mload(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA)))
+        mstore(add(mPtr, add(offset, 0x20)), calldataload(add(aproof, PROOF_L_AT_ZETA)))
+        mstore(add(mPtr, add(offset, 0x40)), calldataload(add(aproof, PROOF_R_AT_ZETA)))
+        mstore(add(mPtr, add(offset, 0x60)), calldataload(add(aproof, PROOF_O_AT_ZETA)))
+        mstore(add(mPtr, add(offset, 0x80)), calldataload(add(aproof, PROOF_S1_AT_ZETA)))
+        mstore(add(mPtr, add(offset, 0xa0)), calldataload(add(aproof, PROOF_S2_AT_ZETA)))
 
-        mstore(add(mPtr, offset), calldataload(add(aproof, PROOF_QUOTIENT_POLYNOMIAL_AT_ZETA)))
-        mstore(add(mPtr, add(offset, 0x20)), calldataload(add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA)))
-        mstore(add(mPtr, add(offset, 0x40)), calldataload(add(aproof, PROOF_L_AT_ZETA)))
-        mstore(add(mPtr, add(offset, 0x60)), calldataload(add(aproof, PROOF_R_AT_ZETA)))
-        mstore(add(mPtr, add(offset, 0x80)), calldataload(add(aproof, PROOF_O_AT_ZETA)))
-        mstore(add(mPtr, add(offset, 0xa0)), calldataload(add(aproof, PROOF_S1_AT_ZETA)))
-        mstore(add(mPtr, add(offset, 0xc0)), calldataload(add(aproof, PROOF_S2_AT_ZETA)))
+        let _mPtr := add(mPtr, add(offset, 0xc0))
 
-        let _mPtr := add(mPtr, add(offset, 0xe0))
-
-        let _poscaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
-        for {
-          let i := 0
-        } lt(i, VK_NB_CUSTOM_GATES) {
-          i := add(i, 1)
-        } {
-          mstore(_mPtr, calldataload(_poscaz))
-          _poscaz := add(_poscaz, 0x20)
-          _mPtr := add(_mPtr, 0x20)
-        }
+        let _poqaz := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
+        calldatacopy(_mPtr, _poqaz, mul(VK_NB_CUSTOM_GATES, 0x20))
+        _mPtr := add(_mPtr, mul(VK_NB_CUSTOM_GATES, 0x20))
 
         mstore(_mPtr, calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)))
 
         let start_input := 0x1b // 00.."gamma"
-        let size_input := add(0x17, mul(VK_NB_CUSTOM_GATES, 3)) // number of 32bytes elmts = 0x17 (zeta+2*7+7 for the digests+openings) + 2*VK_NB_CUSTOM_GATES (for the commitments of the selectors) + VK_NB_CUSTOM_GATES (for the openings of the selectors)
+        let size_input := add(0x14, mul(VK_NB_CUSTOM_GATES, 3)) // number of 32bytes elmts = 0x14 (zeta+3*6 for the digests+openings) + 3*VK_NB_CUSTOM_GATES (for the commitments of the selectors) + 1 (opening of Z at ζω)
         size_input := add(0x5, mul(size_input, 0x20)) // size in bytes: 15*32 bytes + 5 bytes for gamma
-        let check_staticcall := staticcall(gas(), 0x2, add(mPtr, start_input), size_input, add(state, STATE_GAMMA_KZG), 0x20)
+        let check_staticcall := staticcall(gas(), SHA2, add(mPtr, start_input), size_input, add(state, STATE_GAMMA_KZG), 0x20)
         if iszero(check_staticcall) {
           error_verify()
         }
@@ -1046,18 +1043,18 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(add(mPtr, 0x20), VK_QK_COM_Y)
         point_add(add(state, STATE_LINEARISED_POLYNOMIAL_X), add(state, STATE_LINEARISED_POLYNOMIAL_X), mPtr, add(mPtr, 0x40))
 
-        let commits_api_at_zeta := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
-        let commits_api := add(aproof, PROOF_COMMITMENTS_WIRES_CUSTOM_GATES)
+        let qcp_opening_at_zeta := add(aproof, PROOF_OPENING_QCP_AT_ZETA)
+        let bsb_commitments := add(aproof, PROOF_BSB_COMMITMENTS)
         for {
           let i := 0
         } lt(i, VK_NB_CUSTOM_GATES) {
           i := add(i, 1)
         } {
-          mstore(mPtr, calldataload(commits_api))
-          mstore(add(mPtr, 0x20), calldataload(add(commits_api, 0x20)))
-          point_acc_mul(add(state, STATE_LINEARISED_POLYNOMIAL_X), mPtr, calldataload(commits_api_at_zeta), add(mPtr, 0x40))
-          commits_api_at_zeta := add(commits_api_at_zeta, 0x20)
-          commits_api := add(commits_api, 0x40)
+          mstore(mPtr, calldataload(bsb_commitments))
+          mstore(add(mPtr, 0x20), calldataload(add(bsb_commitments, 0x20)))
+          point_acc_mul(add(state, STATE_LINEARISED_POLYNOMIAL_X), mPtr, calldataload(qcp_opening_at_zeta), add(mPtr, 0x40))
+          qcp_opening_at_zeta := add(qcp_opening_at_zeta, 0x20)
+          bsb_commitments := add(bsb_commitments, 0x40)
         }
 
         mstore(mPtr, VK_S3_COM_X)
@@ -1067,15 +1064,18 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(mPtr, calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_X)))
         mstore(add(mPtr, 0x20), calldataload(add(aproof, PROOF_GRAND_PRODUCT_COMMITMENT_Y)))
         point_acc_mul(add(state, STATE_LINEARISED_POLYNOMIAL_X), mPtr, s2, add(mPtr, 0x40))
+
+        point_add(add(state, STATE_LINEARISED_POLYNOMIAL_X), add(state, STATE_LINEARISED_POLYNOMIAL_X), add(state, STATE_FOLDED_H_X), mPtr)
       }
 
       /// @notice Compute the commitment to the linearized polynomial equal to
       ///	L(ζ)[Qₗ]+r(ζ)[Qᵣ]+R(ζ)L(ζ)[Qₘ]+O(ζ)[Qₒ]+[Qₖ]+Σᵢqc'ᵢ(ζ)[BsbCommitmentᵢ] +
-      ///	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
-      ///	α²*L₁(ζ)[Z]
+      ///	α*( Z(μζ)(L(ζ)+β*S₁(ζ)+γ)*(R(ζ)+β*S₂(ζ)+γ)[S₃]-[Z](L(ζ)+β*id_{1}(ζ)+γ)*(R(ζ)+β*id_{2}(ζ)+γ)*(O(ζ)+β*id_{3}(ζ)+γ) ) +
+      ///	α²*L₁(ζ)[Z] - Z_{H}(ζ)*(([H₀] + ζᵐ⁺²*[H₁] + ζ²⁽ᵐ⁺²⁾*[H₂])
       /// where
       /// * id_1 = id, id_2 = vk_coset_shift*id, id_3 = vk_coset_shift^{2}*id
       /// * the [] means that it's a commitment (i.e. a point on Bn254(F_p))
+      /// * Z_{H}(ζ) = ζ^n-1
       /// @param aproof pointer to the proof
       function compute_commitment_linearised_polynomial(aproof) {
         let state := mload(0x40)
@@ -1123,7 +1123,7 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         compute_commitment_linearised_polynomial_ec(aproof, s1, s2)
       }
 
-      /// @notice compute H₁ + ζᵐ⁺²*H₂ + ζ²⁽ᵐ⁺²⁾*H₃ and store the result at
+      /// @notice compute -z_h(ζ)*([H₁] + ζⁿ⁺²[H₂] + ζ²⁽ⁿ⁺²⁾[H₃]) and store the result at
       /// state + state_folded_h
       /// @param aproof pointer to the proof
       function fold_h(aproof) {
@@ -1131,53 +1131,52 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         let n_plus_two := add(VK_DOMAIN_SIZE, 2)
         let mPtr := add(mload(0x40), STATE_LAST_MEM)
         let zeta_power_n_plus_two := pow(mload(add(state, STATE_ZETA)), n_plus_two, mPtr)
-        point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_X), zeta_power_n_plus_two, mPtr)
-        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_X), mPtr)
+        point_mul_calldata(add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_2_COM_X), zeta_power_n_plus_two, mPtr)
+        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_1_COM_X), mPtr)
         point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), zeta_power_n_plus_two, mPtr)
-        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_X), mPtr)
+        point_add_calldata(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), add(aproof, PROOF_H_0_COM_X), mPtr)
+        point_mul(add(state, STATE_FOLDED_H_X), add(state, STATE_FOLDED_H_X), mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE)), mPtr)
+        let folded_h_y := mload(add(state, STATE_FOLDED_H_Y))
+        folded_h_y := sub(P_MOD, folded_h_y)
+        mstore(add(state, STATE_FOLDED_H_Y), folded_h_y)
       }
 
-      /// @notice check that
-      ///	L(ζ)Qₗ(ζ)+r(ζ)Qᵣ(ζ)+R(ζ)L(ζ)Qₘ(ζ)+O(ζ)Qₒ(ζ)+Qₖ(ζ)+Σᵢqc'ᵢ(ζ)BsbCommitmentᵢ(ζ) +
-      ///  α*( Z(μζ)(l(ζ)+β*s₁(ζ)+γ)*(r(ζ)+β*s₂(ζ)+γ)*β*s₃(X)-Z(X)(l(ζ)+β*id_1(ζ)+γ)*(r(ζ)+β*id_2(ζ)+γ)*(o(ζ)+β*id_3(ζ)+γ) ) )
-      /// + α²*L₁(ζ) =
-      /// (ζⁿ-1)H(ζ)
+      /// @notice check that the opening of the linearised polynomial at zeta is equal to
+      /// - [ PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ) ]
       /// @param aproof pointer to the proof
-      function verify_quotient_poly_eval_at_zeta(aproof) {
+      function compute_opening_linearised_polynomial(aproof) {
         let state := mload(0x40)
 
         // (l(ζ)+β*s1(ζ)+γ)
-        let s1 := add(mload(0x40), STATE_LAST_MEM)
-        mstore(s1, mulmod(calldataload(add(aproof, PROOF_S1_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD))
-        mstore(s1, addmod(mload(s1), mload(add(state, STATE_GAMMA)), R_MOD))
-        mstore(s1, addmod(mload(s1), calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD))
+        let s1
+        s1 := mulmod(calldataload(add(aproof, PROOF_S1_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD)
+        s1 := addmod(s1, mload(add(state, STATE_GAMMA)), R_MOD)
+        s1 := addmod(s1, calldataload(add(aproof, PROOF_L_AT_ZETA)), R_MOD)
 
         // (r(ζ)+β*s2(ζ)+γ)
-        let s2 := add(s1, 0x20)
-        mstore(s2, mulmod(calldataload(add(aproof, PROOF_S2_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD))
-        mstore(s2, addmod(mload(s2), mload(add(state, STATE_GAMMA)), R_MOD))
-        mstore(s2, addmod(mload(s2), calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD))
-        // _s2 := mload(s2)
+        let s2
+        s2 := mulmod(calldataload(add(aproof, PROOF_S2_AT_ZETA)), mload(add(state, STATE_BETA)), R_MOD)
+        s2 := addmod(s2, mload(add(state, STATE_GAMMA)), R_MOD)
+        s2 := addmod(s2, calldataload(add(aproof, PROOF_R_AT_ZETA)), R_MOD)
 
         // (o(ζ)+γ)
-        let o := add(s1, 0x40)
-        mstore(o, addmod(calldataload(add(aproof, PROOF_O_AT_ZETA)), mload(add(state, STATE_GAMMA)), R_MOD))
+        let o
+        o := addmod(calldataload(add(aproof, PROOF_O_AT_ZETA)), mload(add(state, STATE_GAMMA)), R_MOD)
 
-        //  α*(Z(μζ))*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
-        mstore(s1, mulmod(mload(s1), mload(s2), R_MOD))
-        mstore(s1, mulmod(mload(s1), mload(o), R_MOD))
-        mstore(s1, mulmod(mload(s1), mload(add(state, STATE_ALPHA)), R_MOD))
-        mstore(s1, mulmod(mload(s1), calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)), R_MOD))
+        //  α*Z(μζ)*(l(ζ)+β*s1(ζ)+γ)*(r(ζ)+β*s2(ζ)+γ)*(o(ζ)+γ)
+        s1 := mulmod(s1, s2, R_MOD)
+        s1 := mulmod(s1, o, R_MOD)
+        s1 := mulmod(s1, mload(add(state, STATE_ALPHA)), R_MOD)
+        s1 := mulmod(s1, calldataload(add(aproof, PROOF_GRAND_PRODUCT_AT_ZETA_OMEGA)), R_MOD)
 
-        let computed_quotient := add(s1, 0x60)
+        // PI(ζ) - α²*L₁(ζ) + α(l(ζ)+β*s1(ζ)+γ)(r(ζ)+β*s2(ζ)+γ)(o(ζ)+γ)*z(ωζ)
+        s1 := addmod(s1, mload(add(state, STATE_PI)), R_MOD)
+        s2 := mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0))
+        s2 := sub(R_MOD, s2)
+        s1 := addmod(s1, s2, R_MOD)
+        s1 := sub(R_MOD, s1)
 
-        // linearizedpolynomial + pi(zeta)
-        mstore(computed_quotient, addmod(calldataload(add(aproof, PROOF_LINEARISED_POLYNOMIAL_AT_ZETA)), mload(add(state, STATE_PI)), R_MOD))
-        mstore(computed_quotient, addmod(mload(computed_quotient), mload(s1), R_MOD))
-        mstore(computed_quotient, addmod(mload(computed_quotient), sub(R_MOD, mload(add(state, STATE_ALPHA_SQUARE_LAGRANGE_0))), R_MOD))
-        mstore(s2, mulmod(calldataload(add(aproof, PROOF_QUOTIENT_POLYNOMIAL_AT_ZETA)), mload(add(state, STATE_ZETA_POWER_N_MINUS_ONE)), R_MOD))
-
-        mstore(add(state, STATE_SUCCESS), eq(mload(computed_quotient), mload(s2)))
+        mstore(add(state, STATE_OPENING_LINEARISED_POLYNOMIAL_ZETA), s1)
       }
 
       // BEGINNING utils math functions -------------------------------------------------
@@ -1187,12 +1186,11 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param q pointer to the second point
       /// @param mPtr pointer to free memory
       function point_add(dst, p, q, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, mload(p))
         mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
         mstore(add(mPtr, 0x40), mload(q))
         mstore(add(mPtr, 0x60), mload(add(q, 0x20)))
-        let l_success := staticcall(gas(), 6, mPtr, 0x80, dst, 0x40)
+        let l_success := staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40)
         if iszero(l_success) {
           error_ec_op()
         }
@@ -1203,12 +1201,11 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param q pointer to the second point (calladata)
       /// @param mPtr pointer to free memory
       function point_add_calldata(dst, p, q, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, mload(p))
         mstore(add(mPtr, 0x20), mload(add(p, 0x20)))
         mstore(add(mPtr, 0x40), calldataload(q))
         mstore(add(mPtr, 0x60), calldataload(add(q, 0x20)))
-        let l_success := staticcall(gas(), 6, mPtr, 0x80, dst, 0x40)
+        let l_success := staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40)
         if iszero(l_success) {
           error_ec_op()
         }
@@ -1219,11 +1216,10 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param s scalar
       /// @param mPtr free memory
       function point_mul(dst, src, s, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, mload(src))
         mstore(add(mPtr, 0x20), mload(add(src, 0x20)))
         mstore(add(mPtr, 0x40), s)
-        let l_success := staticcall(gas(), 7, mPtr, 0x60, dst, 0x40)
+        let l_success := staticcall(gas(), EC_MUL, mPtr, 0x60, dst, 0x40)
         if iszero(l_success) {
           error_ec_op()
         }
@@ -1234,11 +1230,10 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param s scalar
       /// @param mPtr free memory
       function point_mul_calldata(dst, src, s, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, calldataload(src))
         mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
         mstore(add(mPtr, 0x40), s)
-        let l_success := staticcall(gas(), 7, mPtr, 0x60, dst, 0x40)
+        let l_success := staticcall(gas(), EC_MUL, mPtr, 0x60, dst, 0x40)
         if iszero(l_success) {
           error_ec_op()
         }
@@ -1250,14 +1245,13 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param s scalar
       /// @param mPtr free memory
       function point_acc_mul(dst, src, s, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, mload(src))
         mstore(add(mPtr, 0x20), mload(add(src, 0x20)))
         mstore(add(mPtr, 0x40), s)
         let l_success := staticcall(gas(), 7, mPtr, 0x60, mPtr, 0x40)
         mstore(add(mPtr, 0x40), mload(dst))
         mstore(add(mPtr, 0x60), mload(add(dst, 0x20)))
-        l_success := and(l_success, staticcall(gas(), 6, mPtr, 0x80, dst, 0x40))
+        l_success := and(l_success, staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40))
         if iszero(l_success) {
           error_ec_op()
         }
@@ -1269,14 +1263,13 @@ contract ZkLighterVerifier is IZkLighterVerifier {
       /// @param s scalar
       /// @mPtr free memory
       function point_acc_mul_calldata(dst, src, s, mPtr) {
-        let state := mload(0x40)
         mstore(mPtr, calldataload(src))
         mstore(add(mPtr, 0x20), calldataload(add(src, 0x20)))
         mstore(add(mPtr, 0x40), s)
         let l_success := staticcall(gas(), 7, mPtr, 0x60, mPtr, 0x40)
         mstore(add(mPtr, 0x40), mload(dst))
         mstore(add(mPtr, 0x60), mload(add(dst, 0x20)))
-        l_success := and(l_success, staticcall(gas(), 6, mPtr, 0x80, dst, 0x40))
+        l_success := and(l_success, staticcall(gas(), EC_ADD, mPtr, 0x80, dst, 0x40))
         if iszero(l_success) {
           error_ec_op()
         }
@@ -1302,9 +1295,9 @@ contract ZkLighterVerifier is IZkLighterVerifier {
         mstore(add(mPtr, 0x60), x)
         mstore(add(mPtr, 0x80), e)
         mstore(add(mPtr, 0xa0), R_MOD)
-        let check_staticcall := staticcall(gas(), 0x05, mPtr, 0xc0, mPtr, 0x20)
+        let check_staticcall := staticcall(gas(), MOD_EXP, mPtr, 0xc0, mPtr, 0x20)
         if eq(check_staticcall, 0) {
-          error_verify()
+          error_mod_exp()
         }
         res := mload(mPtr)
       }

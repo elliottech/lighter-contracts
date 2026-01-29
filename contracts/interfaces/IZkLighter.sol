@@ -161,11 +161,17 @@ interface IZkLighter is IEvents {
 
   /// @notice Performs the Desert Exit, can be called only when desertMode is active
   /// @param _accountIndex Account index of the user who is performing the desert exit
-  /// @param _l1Address L1 address of the user who is performing the desert exit
+  /// @param _masterAccountIndex Master account index of the user who is performing the desert exit
   /// @param _assetIndex Asset index of the asset to be exited
   /// @param _totalBaseAmount Total base balance of the user for the asset to be exited
   /// @param proof Proof for the user assets
-  function performDesert(uint48 _accountIndex, address _l1Address, uint16 _assetIndex, uint128 _totalBaseAmount, bytes calldata proof) external;
+  function performDesert(
+    uint48 _accountIndex,
+    uint48 _masterAccountIndex,
+    uint16 _assetIndex,
+    uint128 _totalBaseAmount,
+    bytes calldata proof
+  ) external;
 
   /// @notice Cancels outstanding deposits, can be called only when desertMode is active
   /// @param _n Number of outstanding priority requests to be cancelled
@@ -218,6 +224,10 @@ interface IZkLighter is IEvents {
   /// @dev This function is only callable by the governor
   function updateAssetConfig(uint16 assetIndex, uint8 withdrawalsEnabled, uint64 depositCapTicks, uint64 minDepositTicks) external;
 
+  /// @notice Set system config
+  /// @param _params Config parameters
+  function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external;
+
   /// @notice Register a new asset to Lighter
   /// @param _decimals Number of decimals of the asset
   /// @param _symbol Symbol of the asset
@@ -264,12 +274,6 @@ interface IZkLighter is IEvents {
   /// @param _publicPoolIndex Public pool index
   /// @param _shareAmount Amount of shares to burn
   function burnShares(uint48 _accountIndex, uint48 _publicPoolIndex, uint64 _shareAmount) external;
-
-  /// @notice Unstake assets from a staking pool
-  /// @param _accountIndex Account index
-  /// @param _stakingPoolIndex Staking pool index
-  /// @param _shareAmount Amount of shares to unstake
-  function unstakeAssets(uint48 _accountIndex, uint48 _stakingPoolIndex, uint64 _shareAmount) external;
 
   /// @notice Withdraws tokens from ZkLighter contract to the owner
   /// @param _owner Account address

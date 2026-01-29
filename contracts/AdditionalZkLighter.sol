@@ -24,22 +24,19 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   error AdditionalZkLighter_RecipientAddressInvalid();
   error AdditionalZkLighter_InvalidMarketStatus();
   error AdditionalZkLighter_InvalidMarginMode();
-  error AdditionalZkLighter_InvalidQuoteMultiplier();
   error AdditionalZkLighter_InvalidExtensionMultiplier();
   error AdditionalZkLighter_InvalidFeeAmount();
   error AdditionalZkLighter_InvalidMarginFraction();
-  error AdditionalZkLighter_InvalidInterestRate();
   error AdditionalZkLighter_InvalidMinAmounts();
+  error AdditionalZkLighter_InvalidConfigPeriod();
   error AdditionalZkLighter_InvalidMarketType();
   error AdditionalZkLighter_InvalidShareAmount();
   error AdditionalZkLighter_InvalidCreateOrderParameters();
   error AdditionalZkLighter_AccountIsNotRegistered();
   error AdditionalZkLighter_InvalidBatch();
-  error AdditionalZkLighter_InvalidFundingClamps();
-  error AdditionalZkLighter_InvalidOpenInterestLimit();
-  error AdditionalZkLighter_InvalidOrderQuoteLimit();
+  error AdditionalZkLighter_InvalidFundingClampsOrInterestRate();
+  error AdditionalZkLighter_InvalidMarketLimits();
   error AdditionalZkLighter_StateRootUpgradeVerifierFailed();
-  error AdditionalZkLighter_StateRootUpgradeVerifierNotFound();
 
   function updateStateRoot(
     StoredBatchInfo calldata _lastStoredBatch,
@@ -70,7 +67,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
       stateRootUpgradeVerifier = IZkLighterStateRootUpgradeVerifier(address(0));
     } else {
-      revert AdditionalZkLighter_StateRootUpgradeVerifierNotFound();
+      revert AdditionalZkLighter_StateRootUpgradeVerifierFailed();
     }
 
     stateRoot = _stateRoot;
@@ -217,7 +214,20 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     });
     bytes memory pubData = TxTypes.writeChangePubKeyPubDataForPriorityQueue(_tx);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1ChangePubKey, pubData, pubData);
-    emit ChangePubKey(_accountIndex, _apiKeyIndex, _pubKey);
+  }
+
+  /// @notice Create new asset
+  /// @param _params Config parameters
+  function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external nonReentrant onlyActive {
+    governance.requireGovernor(msg.sender);
+    if (_params.liquidityPoolCooldownPeriod > MAX_CONFIG_PERIOD || _params.stakingPoolLockupPeriod > MAX_CONFIG_PERIOD) {
+      revert AdditionalZkLighter_InvalidConfigPeriod();
+    }
+    if (_params.liquidityPoolIndex > NIL_ACCOUNT_INDEX || _params.stakingPoolIndex > NIL_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
+    }
+    bytes memory priorityRequest = TxTypes.writeSetSystemConfigPubDataForPriorityQueue(_params);
+    addPriorityRequest(TxTypes.PriorityPubDataTypeL1SetSystemConfig, priorityRequest, priorityRequest);
   }
 
   /// @notice Create new asset
@@ -330,10 +340,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       revert AdditionalZkLighter_InvalidMarginFraction();
     }
     if (perpParams.interestRate > FUNDING_RATE_TICK) {
-      revert AdditionalZkLighter_InvalidInterestRate();
+      revert AdditionalZkLighter_InvalidFundingClampsOrInterestRate();
     }
     if (perpParams.fundingClampSmall > FUNDING_RATE_TICK || perpParams.fundingClampBig > FUNDING_RATE_TICK) {
-      revert AdditionalZkLighter_InvalidFundingClamps();
+      revert AdditionalZkLighter_InvalidFundingClampsOrInterestRate();
     }
     if (
       perpParams.minBaseAmount == 0 ||
@@ -344,10 +354,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       revert AdditionalZkLighter_InvalidMinAmounts();
     }
     if (perpParams.orderQuoteLimit > MAX_ORDER_QUOTE_AMOUNT || perpParams.minQuoteAmount > perpParams.orderQuoteLimit) {
-      revert AdditionalZkLighter_InvalidOrderQuoteLimit();
+      revert AdditionalZkLighter_InvalidMarketLimits();
     }
     if (perpParams.openInterestLimit < perpParams.orderQuoteLimit || perpParams.openInterestLimit > MAX_MARKET_OPEN_INTEREST) {
-      revert AdditionalZkLighter_InvalidOpenInterestLimit();
+      revert AdditionalZkLighter_InvalidMarketLimits();
     }
   }
 
@@ -364,7 +374,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       revert AdditionalZkLighter_InvalidMinAmounts();
     }
     if (spotParams.orderQuoteLimit > MAX_ORDER_QUOTE_AMOUNT || spotParams.minQuoteAmount > spotParams.orderQuoteLimit) {
-      revert AdditionalZkLighter_InvalidOrderQuoteLimit();
+      revert AdditionalZkLighter_InvalidMarketLimits();
     }
   }
 
@@ -375,7 +385,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
         revert AdditionalZkLighter_InvalidMarketType();
       }
       if (perpParams.quoteMultiplier == 0 || perpParams.quoteMultiplier > MAX_QUOTE_MULTIPLIER) {
-        revert AdditionalZkLighter_InvalidQuoteMultiplier();
+        revert AdditionalZkLighter_InvalidExtensionMultiplier();
       }
       validateCommonPerpMarketParams(perpParams.common);
     } else if (_params.marketType == TxTypes.MarketType.Spot) {
@@ -457,7 +467,6 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     TxTypes.CancelAllOrders memory _tx = TxTypes.CancelAllOrders({accountIndex: _accountIndex, masterAccountIndex: _masterAccountIndex});
     bytes memory pubData = TxTypes.writeCancelAllOrdersPubDataForPriorityQueue(_tx);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1CancelAllOrders, pubData, pubData);
-    emit CancelAllOrders(_accountIndex);
   }
 
   /// @notice Withdraw ETH or ERC20 from zkLighter
@@ -495,7 +504,6 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
     bytes memory pubData = TxTypes.writeWithdrawPubDataForPriorityQueue(_tx);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1Withdraw, pubData, pubData);
-    emit Withdraw(_accountIndex, _assetIndex, _routeType, _baseAmount);
   }
 
   /// @notice Create an order for a Lighter account
@@ -552,7 +560,6 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
     bytes memory pubData = TxTypes.writeCreateOrderPubDataForPriorityQueue(_tx);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1CreateOrder, pubData, pubData);
-    emit CreateOrder(_tx);
   }
 
   /// @notice Burn shares of an account in a public pool
@@ -577,32 +584,6 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     });
     bytes memory pubData = TxTypes.writeBurnSharesPubDataForPriorityQueue(_tx);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1BurnShares, pubData, pubData);
-    emit BurnShares(_tx);
-  }
-
-  /// @notice Unstake assets from a staking pool
-  /// @param _accountIndex Account index
-  /// @param _stakingPoolIndex Staking pool index
-  /// @param _shareAmount Amount of shares to unstake
-  function unstakeAssets(uint48 _accountIndex, uint48 _stakingPoolIndex, uint64 _shareAmount) external nonReentrant onlyActive {
-    validatePoolExit(_accountIndex, _stakingPoolIndex);
-    uint48 _masterAccountIndex = getAccountIndexFromAddress(msg.sender);
-    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_AccountIsNotRegistered();
-    }
-    if (_shareAmount < MIN_STAKING_SHARES_TO_MINT_OR_BURN || _shareAmount > MAX_STAKING_SHARES_TO_MINT_OR_BURN) {
-      revert AdditionalZkLighter_InvalidShareAmount();
-    }
-
-    TxTypes.UnstakeAssets memory _tx = TxTypes.UnstakeAssets({
-      accountIndex: _accountIndex,
-      masterAccountIndex: _masterAccountIndex,
-      stakingPoolIndex: _stakingPoolIndex,
-      sharesAmount: _shareAmount
-    });
-    bytes memory pubData = TxTypes.writeUnstakeAssetsPubDataForPriorityQueue(_tx);
-    addPriorityRequest(TxTypes.PriorityPubDataTypeL1UnstakeAssets, pubData, pubData);
-    emit UnstakeAssets(_tx);
   }
 
   /// @notice Register deposit request - pack pubdata, add into onchainOpsCheck and emit OnchainDeposit event

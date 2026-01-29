@@ -142,13 +142,13 @@ contract ZkLighterTests is Test {
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
 
     vm.prank(testAddress);
-    vm.expectEmit();
-    emit IEvents.Withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
+    vm.expectEmit(true, false, false, false);
+    emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
 
     vm.prank(testAddress);
-    vm.expectEmit();
-    emit IEvents.Withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
+    vm.expectEmit(false, false, false, false);
+    emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
   }
 
@@ -200,13 +200,13 @@ contract ZkLighterTests is Test {
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
 
     vm.prank(testAddress);
-    vm.expectEmit();
-    emit IEvents.Withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
+    vm.expectEmit(false, false, false, false);
+    emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
 
     vm.prank(testAddress);
-    vm.expectEmit();
-    emit IEvents.Withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
+    vm.expectEmit(false, false, false, false);
+    emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
   }
 
@@ -271,13 +271,13 @@ contract ZkLighterTests is Test {
 
     // try again
     vm.prank(testAddress);
-    vm.expectEmit();
-    emit IEvents.Withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(baseDepositAmount));
+    vm.expectEmit(false, false, false, false);
+    emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(baseDepositAmount));
 
     vm.prank(testAddress);
-    vm.expectEmit();
-    emit IEvents.Withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(baseDepositAmount));
+    vm.expectEmit(false, false, false, false);
+    emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
     zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(baseDepositAmount));
   }
 

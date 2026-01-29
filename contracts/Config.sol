@@ -142,4 +142,6 @@ contract Config {
   function _hasCode(address account) internal view returns (bool) {
     return account.code.length > 0;
   }
+
+  uint48 constant MAX_CONFIG_PERIOD = 1000 * 60 * 60 * 24 * 14; // 14 days in milliseconds
 }

@@ -95,7 +95,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     // Commit to the initialization parameters to ensure parameters are known at the time of upgrade initialization
     bytes32 upgradeParametersHash = keccak256(upgradeParameters);
     // Commits to 0 address for _additionalZkLighter, _desertVerifier and _stateRootUpgradeVerifier
-    bytes32 initializationParametersCommitment = 0x991dedd197f37f42e760755ddb47d4a7485c70bca50bcefbc75811661c2a6219;
+    bytes32 initializationParametersCommitment = 0xde9fd00f43743441cc54f7bbe8192fdf645afb63d5bee35c2294921122d560e6;
     if (upgradeParametersHash != initializationParametersCommitment) {
       revert ZkLighter_InvalidUpgradeParameters();
     }
@@ -263,6 +263,11 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
+  function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external {
+    delegateAdditional();
+  }
+
+  /// @inheritdoc IZkLighter
   function registerAsset(uint8 _l1Decimals, uint8 _decimals, bytes32 _symbol, TxTypes.RegisterAsset calldata _params) external {
     delegateAdditional();
   }
@@ -318,11 +323,6 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
-  function unstakeAssets(uint48 _accountIndex, uint48 _stakingPoolIndex, uint64 _shareAmount) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
   function updateStateRoot(StoredBatchInfo calldata _lastStoredBatch, bytes32 _stateRoot, bytes32 _validiumRoot, bytes calldata proof) external {
     delegateAdditional();
   }
@@ -330,17 +330,17 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   function createExitCommitment(
     uint256 stateRoot,
     uint48 _accountIndex,
-    address _l1Address,
+    uint48 _masterAccountIndex,
     uint16 _assetIndex,
     uint128 _totalBaseAmount
   ) internal pure returns (bytes32) {
-    return keccak256(abi.encodePacked(stateRoot, _accountIndex, _l1Address, _assetIndex, _totalBaseAmount));
+    return keccak256(abi.encodePacked(stateRoot, _accountIndex, _masterAccountIndex, _assetIndex, _totalBaseAmount));
   }
 
   /// @notice Performs exit from zkLighter in desert mode
   function performDesert(
     uint48 _accountIndex,
-    address _l1Address,
+    uint48 _masterAccountIndex,
     uint16 _assetIndex,
     uint128 _totalBaseAmount,
     bytes calldata proof
@@ -355,14 +355,14 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     }
 
     uint256[] memory inputs = new uint256[](1);
-    bytes32 commitment = createExitCommitment(uint256(stateRoot), _accountIndex, _l1Address, _assetIndex, _totalBaseAmount);
+    bytes32 commitment = createExitCommitment(uint256(stateRoot), _accountIndex, _masterAccountIndex, _assetIndex, _totalBaseAmount);
     inputs[0] = uint256(commitment) % BN254_MODULUS;
     bool success = desertVerifier.Verify(proof, inputs);
     if (!success) {
       revert ZkLighter_DesertVerifyProofFailed();
     }
 
-    increaseBalanceToWithdraw(getAccountIndexFromAddress(_l1Address), _assetIndex, _totalBaseAmount);
+    increaseBalanceToWithdraw(_masterAccountIndex, _assetIndex, _totalBaseAmount);
     accountPerformedDesertForAsset[_assetIndex][_accountIndex] = true;
   }
 
