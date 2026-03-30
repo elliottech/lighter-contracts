@@ -4,6 +4,7 @@ import {
   CreateMarket,
   PriorityPubDataType,
   PubDataTypeMap,
+  SetSystemConfig,
   UpdateMarket,
   advanceBlocks,
   emptyCreatePerpsMarket,
@@ -823,6 +824,82 @@ describe('ZkLighter Tests', function () {
     it('should success', async () => {
       await depositUSDC(zkLighter, 10_000_000, usdc, sender1, receiver1);
       await changePubKey(zkLighter, receiver1, 0, randomValidPubKey());
+    });
+  });
+
+  describe('SetSystemConfig', function () {
+    it('should reverted if sender is not governor', async () => {
+      const params: SetSystemConfig = {
+        liquidityPoolIndex: 0,
+        stakingPoolIndex: 1,
+        liquidityPoolCooldownPeriod: 100,
+        stakingPoolLockupPeriod: 200,
+        maxIntegratorPerpsTakerFee: 0,
+        maxIntegratorPerpsMakerFee: 0,
+        maxIntegratorSpotTakerFee: 0,
+        maxIntegratorSpotMakerFee: 0,
+      };
+      await expect(zkLighter.connect(sender1).setSystemConfig(params)).to.be.revertedWithCustomError(
+        governance,
+        'ZkLighter_Governance_OnlyGovernor',
+      );
+    });
+
+    it('should fail with invalid fee', async () => {
+      const params: SetSystemConfig = {
+        liquidityPoolIndex: 0,
+        stakingPoolIndex: 1,
+        liquidityPoolCooldownPeriod: 100,
+        stakingPoolLockupPeriod: 200,
+        maxIntegratorPerpsTakerFee: 10,
+        maxIntegratorPerpsMakerFee: 10,
+        maxIntegratorSpotTakerFee: 1_000_005,
+        maxIntegratorSpotMakerFee: 20,
+      };
+      await expect(zkLighter.connect(governorWallet).setSystemConfig(params)).to.be.revertedWithCustomError(
+        additionalZkLighter,
+        'AdditionalZkLighter_InvalidFeeAmount',
+      );
+    });
+
+    it('should success', async () => {
+      const params: SetSystemConfig = {
+        liquidityPoolIndex: 0,
+        stakingPoolIndex: 1,
+        liquidityPoolCooldownPeriod: 1000,
+        stakingPoolLockupPeriod: 2000,
+        maxIntegratorPerpsTakerFee: 10,
+        maxIntegratorPerpsMakerFee: 10,
+        maxIntegratorSpotTakerFee: 1000,
+        maxIntegratorSpotMakerFee: 20,
+      };
+
+      const nextPriorityRequestId: number = await getNextPriorityRequestId(zkLighter);
+      const tx = await zkLighter.connect(governorWallet).setSystemConfig(params);
+      await tx.wait();
+      const expirationTimestamp: number = await getExpirationTimestamp(zkLighter);
+
+      const pubData = encodePubData(PubDataTypeMap[PriorityPubDataType.L1SetSystemConfig], [
+        PriorityPubDataType.L1SetSystemConfig,
+        params.liquidityPoolIndex,
+        params.stakingPoolIndex,
+        params.liquidityPoolCooldownPeriod,
+        params.stakingPoolLockupPeriod,
+        params.maxIntegratorPerpsTakerFee,
+        params.maxIntegratorPerpsMakerFee,
+        params.maxIntegratorSpotTakerFee,
+        params.maxIntegratorSpotMakerFee,
+      ]);
+
+      await expect(tx)
+        .to.emit(zkLighter, 'NewPriorityRequest')
+        .withArgs(
+          governorWallet.address,
+          nextPriorityRequestId,
+          PriorityPubDataType.L1SetSystemConfig,
+          pubData,
+          expirationTimestamp,
+        );
     });
   });
 

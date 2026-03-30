@@ -226,6 +226,8 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_params.liquidityPoolIndex > NIL_ACCOUNT_INDEX || _params.stakingPoolIndex > NIL_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
+    validateMarketFeeParams(_params.maxIntegratorPerpsTakerFee, _params.maxIntegratorPerpsMakerFee);
+    validateMarketFeeParams(_params.maxIntegratorSpotTakerFee, _params.maxIntegratorSpotMakerFee);
     bytes memory priorityRequest = TxTypes.writeSetSystemConfigPubDataForPriorityQueue(_params);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1SetSystemConfig, priorityRequest, priorityRequest);
   }
@@ -326,8 +328,15 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     emit CreateMarket(_params, _size_decimals, _price_decimals, _symbol);
   }
 
+  function validateMarketFeeParams(uint32 takerFee, uint32 makerFee) internal pure {
+    if (takerFee > FEE_TICK || makerFee > FEE_TICK) {
+      revert AdditionalZkLighter_InvalidFeeAmount();
+    }
+  }
+
   function validateCommonPerpMarketParams(TxTypes.CommonPerpsData memory perpParams) internal pure {
-    if (perpParams.makerFee > FEE_TICK || perpParams.takerFee > FEE_TICK || perpParams.liquidationFee > FEE_TICK) {
+    validateMarketFeeParams(perpParams.takerFee, perpParams.makerFee);
+    if (perpParams.liquidationFee > FEE_TICK) {
       revert AdditionalZkLighter_InvalidFeeAmount();
     }
     if (
@@ -362,9 +371,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   }
 
   function validateCommonSpotMarketParams(TxTypes.CommonSpotData memory spotParams) internal pure {
-    if (spotParams.makerFee > FEE_TICK || spotParams.takerFee > FEE_TICK) {
-      revert AdditionalZkLighter_InvalidFeeAmount();
-    }
+    validateMarketFeeParams(spotParams.takerFee, spotParams.makerFee);
     if (
       spotParams.minBaseAmount == 0 ||
       spotParams.minBaseAmount > MAX_ORDER_BASE_AMOUNT ||
