@@ -141,6 +141,10 @@ export enum PriorityPubDataType {
   L1Withdraw,
   L1CreateOrder,
   L1BurnShares,
+  L1RegisterAsset,
+  L1UpdateAsset,
+  L1UnstakeAssets,
+  L1SetSystemConfig,
 }
 
 export enum OnChainPubDataType {
@@ -179,7 +183,31 @@ export const PubDataTypeMap = {
   [PriorityPubDataType.L1CancelAllOrders]: ['uint8', 'uint48', 'uint48'],
   [PriorityPubDataType.L1CreateOrder]: ['uint8', 'uint48', 'uint48', 'uint16', 'uint48', 'uint32', 'uint8', 'uint8'],
   [PriorityPubDataType.L1BurnShares]: ['uint8', 'uint48', 'uint48', 'uint48', 'uint64'],
+  [PriorityPubDataType.L1RegisterAsset]: ['uint8', 'uint16', 'uint56', 'uint64', 'uint64', 'uint8'],
+  [PriorityPubDataType.L1UpdateAsset]: ['uint8', 'uint16', 'uint64', 'uint64', 'uint8'],
+  [PriorityPubDataType.L1SetSystemConfig]: [
+    'uint8',
+    'uint48',
+    'uint48',
+    'uint48',
+    'uint48',
+    'uint32',
+    'uint32',
+    'uint32',
+    'uint32',
+  ],
 };
+
+export interface SetSystemConfig {
+  liquidityPoolIndex: number;
+  stakingPoolIndex: number;
+  liquidityPoolCooldownPeriod: number;
+  stakingPoolLockupPeriod: number;
+  maxIntegratorPerpsTakerFee: number;
+  maxIntegratorPerpsMakerFee: number;
+  maxIntegratorSpotTakerFee: number;
+  maxIntegratorSpotMakerFee: number;
+}
 
 export interface CreateMarket {
   marketIndex: number;

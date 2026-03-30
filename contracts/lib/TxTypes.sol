@@ -362,16 +362,24 @@ library TxTypes {
     uint48 stakingPoolIndex;
     uint48 liquidityPoolCooldownPeriod;
     uint48 stakingPoolLockupPeriod;
+    uint32 maxIntegratorPerpsTakerFee;
+    uint32 maxIntegratorPerpsMakerFee;
+    uint32 maxIntegratorSpotTakerFee;
+    uint32 maxIntegratorSpotMakerFee;
   }
 
-  /// @notice Serialize create asset pubData
+  /// @notice Serialize set system config pubData
   function writeSetSystemConfigPubDataForPriorityQueue(SetSystemConfig memory _tx) internal pure returns (bytes memory buf) {
     buf = abi.encodePacked(
       uint8(PriorityPubDataTypeL1SetSystemConfig),
       _tx.liquidityPoolIndex,
       _tx.stakingPoolIndex,
       _tx.liquidityPoolCooldownPeriod,
-      _tx.stakingPoolLockupPeriod
+      _tx.stakingPoolLockupPeriod,
+      _tx.maxIntegratorPerpsTakerFee,
+      _tx.maxIntegratorPerpsMakerFee,
+      _tx.maxIntegratorSpotTakerFee,
+      _tx.maxIntegratorSpotMakerFee
     );
   }
 
