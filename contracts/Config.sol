@@ -52,17 +52,11 @@ contract Config {
   /// @dev Min price an order can have
   uint32 public constant MIN_ORDER_PRICE = 1;
 
-  /// @dev Nil order base amount
-  uint48 public constant NIL_ORDER_BASE_AMOUNT = 0;
-
   /// @dev Max order base amount
   uint48 public constant MAX_ORDER_BASE_AMOUNT = 2 ** 48 - 1;
 
   /// @dev Max order quote amount
   uint48 public constant MAX_ORDER_QUOTE_AMOUNT = 2 ** 48 - 1;
-
-  /// @dev Min order base amount
-  uint48 public constant MIN_ORDER_BASE_AMOUNT = 1;
 
   /// @dev Max amount of pool shares that can be minted or burned
   uint64 public constant MAX_POOL_SHARES_TO_MINT_OR_BURN = 2 ** 60 - 1;
@@ -144,4 +138,6 @@ contract Config {
   }
 
   uint48 constant MAX_CONFIG_PERIOD = 1000 * 60 * 60 * 24 * 14; // 14 days in milliseconds
+
+  uint16 constant ASSET_MARGIN_TICK = 10_000;
 }

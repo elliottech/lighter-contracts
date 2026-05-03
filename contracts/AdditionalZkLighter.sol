@@ -21,10 +21,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   error AdditionalZkLighter_InvalidDepositBatchLength();
   error AdditionalZkLighter_InvalidApiKeyIndex();
   error AdditionalZkLighter_InvalidPubKey();
-  error AdditionalZkLighter_RecipientAddressInvalid();
   error AdditionalZkLighter_InvalidMarketStatus();
-  error AdditionalZkLighter_InvalidMarginMode();
+  error AdditionalZkLighter_InvalidMarginParameters();
   error AdditionalZkLighter_InvalidExtensionMultiplier();
+  error AdditionalZkLighter_InvalidIndexPriceDivider();
   error AdditionalZkLighter_InvalidFeeAmount();
   error AdditionalZkLighter_InvalidMarginFraction();
   error AdditionalZkLighter_InvalidMinAmounts();
@@ -85,15 +85,11 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param _amount ETH or ERC20 asset amount to deposit
   /// @param _to The receiver L1 address
   function _deposit(address[] memory _to, uint16 _assetIndex, TxTypes.RouteType _routeType, uint256[] memory _amount) internal {
-    AssetConfig memory assetConfig = assetConfigs[_assetIndex];
-    if (_assetIndex != NATIVE_ASSET_INDEX) {
-      if (assetConfig.tokenAddress == address(0)) {
-        revert AdditionalZkLighter_InvalidAssetIndex();
-      }
-      if (msg.value != 0) {
-        revert AdditionalZkLighter_InvalidDepositAmount();
-      }
+    AssetConfig memory assetConfig = validateAndGetAssetConfig(_assetIndex);
+    if (_assetIndex != NATIVE_ASSET_INDEX && msg.value != 0) {
+      revert AdditionalZkLighter_InvalidDepositAmount();
     }
+
     uint256 minDeposit = uint256(assetConfig.minDepositTicks) * uint256(assetConfig.tickSize);
     uint256 depositCap = uint256(assetConfig.depositCapTicks) * uint256(assetConfig.tickSize);
     uint256 totalAmount = 0;
@@ -103,7 +99,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
         revert AdditionalZkLighter_InvalidDepositAmount();
       }
       if (_to[i] == address(0)) {
-        revert AdditionalZkLighter_RecipientAddressInvalid();
+        revert AdditionalZkLighter_AccountIsNotRegistered();
       }
     }
 
@@ -178,17 +174,8 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       revert AdditionalZkLighter_InvalidPubKey();
     }
 
-    // Verify that the public key is not empty
-    for (uint8 i = 0; i < _pubKey.length; ++i) {
-      if (_pubKey[i] != 0) {
-        break;
-      }
-      if (i == _pubKey.length - 1) {
-        revert AdditionalZkLighter_InvalidPubKey();
-      }
-    }
-
-    // Verify that the public key is in the field
+    // Verify that the public key is in connonical form and not zero
+    bool isZero = true;
     for (uint8 i = 0; i < 5; i++) {
       bytes memory elem = _pubKey[(8 * i):(8 * (i + 1))];
       uint64 elemValue = 0;
@@ -198,17 +185,18 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       if (elemValue >= GOLDILOCKS_MODULUS) {
         revert AdditionalZkLighter_InvalidPubKey();
       }
+      if (elemValue != 0) {
+        isZero = false;
+      }
     }
-
-    uint48 _masterAccountIndex = getAccountIndexFromAddress(msg.sender);
-    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_AccountIsNotRegistered();
+    if (isZero) {
+      revert AdditionalZkLighter_InvalidPubKey();
     }
 
     // Add priority request to the queue
     TxTypes.ChangePubKey memory _tx = TxTypes.ChangePubKey({
       accountIndex: _accountIndex,
-      masterAccountIndex: _masterAccountIndex,
+      masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender),
       apiKeyIndex: _apiKeyIndex,
       pubKey: _pubKey
     });
@@ -223,7 +211,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_params.liquidityPoolCooldownPeriod > MAX_CONFIG_PERIOD || _params.stakingPoolLockupPeriod > MAX_CONFIG_PERIOD) {
       revert AdditionalZkLighter_InvalidConfigPeriod();
     }
-    if (_params.liquidityPoolIndex > NIL_ACCOUNT_INDEX || _params.stakingPoolIndex > NIL_ACCOUNT_INDEX) {
+    if (_params.liquidityPoolIndex > MAX_ACCOUNT_INDEX || _params.stakingPoolIndex > MAX_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
     validateMarketFeeParams(_params.maxIntegratorPerpsTakerFee, _params.maxIntegratorPerpsMakerFee);
@@ -232,78 +220,109 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1SetSystemConfig, priorityRequest, priorityRequest);
   }
 
+  function validateCommonAssetParams(
+    uint16 assetIndex,
+    uint64 minL2TransferAmount,
+    uint64 minL2WithdrawalAmount,
+    uint8 marginMode,
+    uint16 loanToValue,
+    uint16 liquidationThreshold,
+    uint16 liquidationFactor,
+    uint32 liquidationFee
+  ) internal pure {
+    // Performs asset parameter range checks, if there is inconsistency between parameters, operation will be noop
+    if (minL2TransferAmount == 0 || minL2TransferAmount > MAX_DEPOSIT_CAP_TICKS) {
+      revert AdditionalZkLighter_InvalidMinAmounts();
+    }
+    if (minL2WithdrawalAmount == 0 || minL2WithdrawalAmount > MAX_DEPOSIT_CAP_TICKS) {
+      revert AdditionalZkLighter_InvalidMinAmounts();
+    }
+    if (marginMode == uint8(TxTypes.AssetMarginMode.Enabled)) {
+      if (
+        loanToValue == 0 || loanToValue > liquidationThreshold || liquidationThreshold > liquidationFactor || liquidationFactor > ASSET_MARGIN_TICK
+      ) {
+        revert AdditionalZkLighter_InvalidMarginParameters();
+      }
+      if (liquidationFee + uint32(liquidationFactor) * uint32(FEE_TICK / ASSET_MARGIN_TICK) > FEE_TICK) {
+        revert AdditionalZkLighter_InvalidMarginParameters();
+      }
+      if (assetIndex == USDC_ASSET_INDEX && (loanToValue != ASSET_MARGIN_TICK || liquidationFee != 0)) {
+        revert AdditionalZkLighter_InvalidMarginParameters();
+      }
+    } else if (marginMode == uint8(TxTypes.AssetMarginMode.Disabled)) {
+      if (assetIndex == USDC_ASSET_INDEX) {
+        revert AdditionalZkLighter_InvalidMarginParameters();
+      }
+      if (loanToValue != 0 || liquidationThreshold != 0 || liquidationFactor != 0 || liquidationFee != 0) {
+        revert AdditionalZkLighter_InvalidMarginParameters();
+      }
+    } else {
+      revert AdditionalZkLighter_InvalidMarginParameters();
+    }
+  }
+
   /// @notice Create new asset
   /// @param _l1Decimals [metadata] Number of decimals of the asset on L1
-  /// @param _decimals [metadata] Number of decimals of the asset in Lighter
+  /// @param _l2decimals [metadata] Number of decimals of the asset in Lighter
+  /// @param _priceDecimals [metadata] Number of decimals to represent price of the asset in Lighter
   /// @param _symbol [metadata] symbol of the asset, formatted as bytes32
   /// @param _params Asset parameters
   function registerAsset(
     uint8 _l1Decimals,
-    uint8 _decimals,
+    uint8 _l2decimals,
+    uint8 _priceDecimals,
     bytes32 _symbol,
     TxTypes.RegisterAsset calldata _params
   ) external nonReentrant onlyActive {
     governance.requireGovernor(msg.sender);
 
-    AssetConfig memory config = assetConfigs[_params.assetIndex];
-    if (_params.assetIndex != NATIVE_ASSET_INDEX && config.tokenAddress == address(0)) {
-      revert AdditionalZkLighter_InvalidAssetIndex();
-    }
+    AssetConfig memory config = validateAndGetAssetConfig(_params.assetIndex);
     if (_params.extensionMultiplier != config.extensionMultiplier) {
       revert AdditionalZkLighter_InvalidExtensionMultiplier();
     }
-    if (_params.minL2TransferAmount == 0 || _params.minL2TransferAmount > MAX_DEPOSIT_CAP_TICKS) {
-      revert AdditionalZkLighter_InvalidMinAmounts();
+    if (_params.indexPriceDivider == 0 || _params.indexPriceDivider > MAX_ASSET_EXTENSION_MULTIPLIER) {
+      revert AdditionalZkLighter_InvalidIndexPriceDivider();
     }
-    if (_params.minL2WithdrawalAmount == 0 || _params.minL2WithdrawalAmount > MAX_DEPOSIT_CAP_TICKS) {
-      revert AdditionalZkLighter_InvalidMinAmounts();
-    }
-    if (_params.marginMode > uint8(type(TxTypes.AssetMarginMode).max)) {
-      revert AdditionalZkLighter_InvalidMarginMode();
-    }
-    if (_params.marginMode == uint8(TxTypes.AssetMarginMode.Enabled) && _params.assetIndex != USDC_ASSET_INDEX) {
-      revert AdditionalZkLighter_InvalidMarginMode();
-    }
-    if (_params.marginMode == uint8(TxTypes.AssetMarginMode.Disabled) && _params.assetIndex == USDC_ASSET_INDEX) {
-      revert AdditionalZkLighter_InvalidMarginMode();
-    }
+    validateCommonAssetParams(
+      _params.assetIndex,
+      _params.minL2TransferAmount,
+      _params.minL2WithdrawalAmount,
+      _params.marginMode,
+      _params.loanToValue,
+      _params.liquidationThreshold,
+      _params.liquidationFactor,
+      _params.liquidationFee
+    );
     bytes memory priorityRequest = TxTypes.writeRegisterAssetPubDataForPriorityQueue(_params);
     bytes memory metadata = TxTypes.writeRegisterAssetPubDataForPriorityQueueWithMetadata(
       priorityRequest,
       _l1Decimals,
-      _decimals,
+      _l2decimals,
+      _priceDecimals,
       config.tickSize,
       config.tokenAddress,
       _symbol
     );
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1RegisterAsset, priorityRequest, metadata);
-    emit RegisterAsset(_params, _l1Decimals, _decimals, _symbol);
   }
 
   /// @notice Update asset parameters
   /// @param _params Asset update parameters
   function updateAsset(TxTypes.UpdateAsset calldata _params) external nonReentrant onlyActive {
     governance.requireGovernor(msg.sender);
-
     validateAssetIndex(_params.assetIndex);
-    if (_params.minL2TransferAmount == 0 || _params.minL2TransferAmount > MAX_DEPOSIT_CAP_TICKS) {
-      revert AdditionalZkLighter_InvalidMinAmounts();
-    }
-    if (_params.minL2WithdrawalAmount == 0 || _params.minL2WithdrawalAmount > MAX_DEPOSIT_CAP_TICKS) {
-      revert AdditionalZkLighter_InvalidMinAmounts();
-    }
-    if (_params.marginMode > uint8(type(TxTypes.AssetMarginMode).max)) {
-      revert AdditionalZkLighter_InvalidMarginMode();
-    }
-    if (_params.marginMode == uint8(TxTypes.AssetMarginMode.Enabled) && _params.assetIndex != USDC_ASSET_INDEX) {
-      revert AdditionalZkLighter_InvalidMarginMode();
-    }
-    if (_params.marginMode == uint8(TxTypes.AssetMarginMode.Disabled) && _params.assetIndex == USDC_ASSET_INDEX) {
-      revert AdditionalZkLighter_InvalidMarginMode();
-    }
+    validateCommonAssetParams(
+      _params.assetIndex,
+      _params.minL2TransferAmount,
+      _params.minL2WithdrawalAmount,
+      _params.marginMode,
+      _params.loanToValue,
+      _params.liquidationThreshold,
+      _params.liquidationFactor,
+      _params.liquidationFee
+    );
     bytes memory pubData = TxTypes.writeUpdateAssetPubDataForPriorityQueue(_params);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1UpdateAsset, pubData, pubData);
-    emit UpdateAsset(_params);
   }
 
   /// @notice Create new market and an order book
@@ -465,13 +484,12 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_accountIndex > MAX_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
-    uint48 _masterAccountIndex = getAccountIndexFromAddress(msg.sender);
-    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_AccountIsNotRegistered();
-    }
 
     // Add priority request to the queue
-    TxTypes.CancelAllOrders memory _tx = TxTypes.CancelAllOrders({accountIndex: _accountIndex, masterAccountIndex: _masterAccountIndex});
+    TxTypes.CancelAllOrders memory _tx = TxTypes.CancelAllOrders({
+      accountIndex: _accountIndex,
+      masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender)
+    });
     bytes memory pubData = TxTypes.writeCancelAllOrdersPubDataForPriorityQueue(_tx);
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1CancelAllOrders, pubData, pubData);
   }
@@ -482,10 +500,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param _accountIndex Account index to withdraw from
   /// @param _baseAmount Amount of base token to withdraw, in ticks
   function withdraw(uint48 _accountIndex, uint16 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external nonReentrant onlyActive {
-    AssetConfig memory assetConfig = assetConfigs[_assetIndex];
-    if (_assetIndex != NATIVE_ASSET_INDEX && assetConfig.tokenAddress == address(0)) {
-      revert AdditionalZkLighter_InvalidAssetIndex();
-    }
+    AssetConfig memory assetConfig = validateAndGetAssetConfig(_assetIndex);
     if (assetConfig.withdrawalsEnabled == 0) {
       revert AdditionalZkLighter_InvalidAssetIndex();
     }
@@ -496,14 +511,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_routeType != TxTypes.RouteType.Perps && _routeType != TxTypes.RouteType.Spot) {
       revert AdditionalZkLighter_InvalidWithdrawAmount();
     }
-    uint48 _masterAccountIndex = getAccountIndexFromAddress(msg.sender);
-    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_AccountIsNotRegistered();
-    }
 
     TxTypes.L1Withdraw memory _tx = TxTypes.L1Withdraw({
       accountIndex: _accountIndex,
-      masterAccountIndex: _masterAccountIndex,
+      masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender),
       assetIndex: _assetIndex,
       routeType: _routeType,
       baseAmount: _baseAmount
@@ -531,33 +542,26 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_accountIndex > MAX_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
-    uint48 _masterAccountIndex = getAccountIndexFromAddress(msg.sender);
-    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_AccountIsNotRegistered();
+    if (_marketIndex > MAX_PERPS_MARKET_INDEX) {
+      revert AdditionalZkLighter_InvalidMarketType();
     }
-    if (_isAsk != 0 && _isAsk != 1) {
+    if (_isAsk > 1) {
       revert AdditionalZkLighter_InvalidCreateOrderParameters();
     }
-
     if (_orderType != uint8(TxTypes.OrderType.LimitOrder) && _orderType != uint8(TxTypes.OrderType.MarketOrder)) {
       revert AdditionalZkLighter_InvalidCreateOrderParameters();
     }
-
-    if (_baseAmount != NIL_ORDER_BASE_AMOUNT && (_baseAmount > MAX_ORDER_BASE_AMOUNT || _baseAmount < MIN_ORDER_BASE_AMOUNT)) {
+    // Zero base amount defaults to the position size, thus is not invalid
+    if (_baseAmount > MAX_ORDER_BASE_AMOUNT) {
       revert AdditionalZkLighter_InvalidCreateOrderParameters();
     }
-
     if (_price > MAX_ORDER_PRICE || _price < MIN_ORDER_PRICE) {
       revert AdditionalZkLighter_InvalidCreateOrderParameters();
     }
 
-    if (_marketIndex > MAX_PERPS_MARKET_INDEX) {
-      revert AdditionalZkLighter_InvalidMarketType();
-    }
-
     TxTypes.CreateOrder memory _tx = TxTypes.CreateOrder({
       accountIndex: _accountIndex,
-      masterAccountIndex: _masterAccountIndex,
+      masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender),
       marketIndex: _marketIndex,
       baseAmount: _baseAmount,
       price: _price,
@@ -574,10 +578,14 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param _publicPoolIndex Public pool index
   /// @param _shareAmount Amount of shares to burn
   function burnShares(uint48 _accountIndex, uint48 _publicPoolIndex, uint64 _shareAmount) external nonReentrant onlyActive {
-    validatePoolExit(_accountIndex, _publicPoolIndex);
-    uint48 _masterAccountIndex = getAccountIndexFromAddress(msg.sender);
-    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_AccountIsNotRegistered();
+    if (_accountIndex > MAX_ACCOUNT_INDEX || _publicPoolIndex > MAX_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
+    }
+    if (_accountIndex == _publicPoolIndex) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
+    }
+    if (_publicPoolIndex <= MAX_MASTER_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
     }
     if (_shareAmount < MIN_POOL_SHARES_TO_MINT_OR_BURN || _shareAmount > MAX_POOL_SHARES_TO_MINT_OR_BURN) {
       revert AdditionalZkLighter_InvalidShareAmount();
@@ -585,7 +593,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
     TxTypes.BurnShares memory _tx = TxTypes.BurnShares({
       accountIndex: _accountIndex,
-      masterAccountIndex: _masterAccountIndex,
+      masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender),
       publicPoolIndex: _publicPoolIndex,
       sharesAmount: _shareAmount
     });
@@ -659,11 +667,19 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     }
   }
 
-  function validatePoolExit(uint48 _accountIndex, uint48 _poolIndex) internal pure {
-    if (
-      _accountIndex > MAX_ACCOUNT_INDEX || _accountIndex == _poolIndex || _poolIndex > MAX_ACCOUNT_INDEX || _poolIndex <= MAX_MASTER_ACCOUNT_INDEX
-    ) {
-      revert AdditionalZkLighter_InvalidAccountIndex();
+  function validateAndGetAssetConfig(uint16 _assetIndex) internal view returns (AssetConfig memory) {
+    AssetConfig memory assetConfig = assetConfigs[_assetIndex];
+    if (_assetIndex != NATIVE_ASSET_INDEX && assetConfig.tokenAddress == address(0)) {
+      revert AdditionalZkLighter_InvalidAssetIndex();
     }
+    return assetConfig;
+  }
+
+  function validateAndGetAccountIndexFromAddress(address _address) internal view returns (uint48) {
+    uint48 _masterAccountIndex = getAccountIndexFromAddress(_address);
+    if (_masterAccountIndex == NIL_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_AccountIsNotRegistered();
+    }
+    return _masterAccountIndex;
   }
 }

@@ -38,12 +38,6 @@ interface IEvents {
   /// @notice Asset config updated event
   event UpdateAssetConfig(uint16 assetIndex, uint8 withdrawalsEnabled, uint64 depositCapTicks, uint64 minDepositTicks);
 
-  /// @notice Asset registered event
-  event RegisterAsset(TxTypes.RegisterAsset params, uint8 l1Decimals, uint8 decimals, bytes32 symbol);
-
-  /// @notice Asset updated event
-  event UpdateAsset(TxTypes.UpdateAsset params);
-
   /// @notice Market updated event
   event UpdateMarket(TxTypes.UpdateMarket params);
 
