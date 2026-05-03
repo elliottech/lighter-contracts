@@ -229,10 +229,18 @@ interface IZkLighter is IEvents {
   function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external;
 
   /// @notice Register a new asset to Lighter
-  /// @param _decimals Number of decimals of the asset
+  /// @param _l1Decimals Number of decimals of the asset on L1
+  /// @param _l2Decimals Number of decimals of the asset on L2
+  /// @param _priceDecimals Number of decimals for the price of the asset
   /// @param _symbol Symbol of the asset
   /// @param _params Asset parameters
-  function registerAsset(uint8 _l1Decimals, uint8 _decimals, bytes32 _symbol, TxTypes.RegisterAsset calldata _params) external;
+  function registerAsset(
+    uint8 _l1Decimals,
+    uint8 _l2Decimals,
+    uint8 _priceDecimals,
+    bytes32 _symbol,
+    TxTypes.RegisterAsset calldata _params
+  ) external;
 
   /// @notice Update existing asset in Lighter
   /// @param _params Asset parameters to update

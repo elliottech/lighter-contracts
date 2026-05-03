@@ -674,7 +674,7 @@ describe('ZkLighter Tests', function () {
         // toAddress should not be zero address
         await expect(zkLighter.deposit(ethers.ZeroAddress, 3, 0, 1_000_000_000)).to.be.revertedWithCustomError(
           additionalZkLighter,
-          'AdditionalZkLighter_RecipientAddressInvalid',
+          'AdditionalZkLighter_AccountIsNotRegistered',
         );
 
         // max deposit amount

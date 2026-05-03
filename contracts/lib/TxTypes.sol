@@ -389,6 +389,11 @@ library TxTypes {
     uint64 minL2TransferAmount; // Minimum L2 transfer amount for the asset
     uint64 minL2WithdrawalAmount; // Minimum L2 withdrawal amount for the asset
     uint8 marginMode; // 0 if disabled, 1 if enabled
+    uint16 loanToValue;
+    uint16 liquidationThreshold;
+    uint16 liquidationFactor;
+    uint32 liquidationFee;
+    uint56 indexPriceDivider; // Extended asset balance * index price / indexPriceDivider = extended USDC value
   }
 
   /// @notice Serialize create asset pubData
@@ -399,7 +404,12 @@ library TxTypes {
       _tx.extensionMultiplier,
       _tx.minL2TransferAmount,
       _tx.minL2WithdrawalAmount,
-      _tx.marginMode
+      _tx.marginMode,
+      _tx.loanToValue,
+      _tx.liquidationThreshold,
+      _tx.liquidationFactor,
+      _tx.liquidationFee,
+      _tx.indexPriceDivider
     );
   }
 
@@ -407,12 +417,13 @@ library TxTypes {
   function writeRegisterAssetPubDataForPriorityQueueWithMetadata(
     bytes memory _data,
     uint8 l1Decimals,
-    uint8 decimals,
+    uint8 l2decimals,
+    uint8 priceDecimals,
     uint128 tickSize,
     address tokenAddress,
     bytes32 symbol
   ) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(_data, l1Decimals, decimals, tickSize, tokenAddress, symbol);
+    buf = abi.encodePacked(_data, l1Decimals, l2decimals, priceDecimals, tickSize, tokenAddress, symbol);
   }
 
   struct UpdateAsset {
@@ -420,6 +431,10 @@ library TxTypes {
     uint64 minL2TransferAmount; // Minimum L2 transfer amount for the asset
     uint64 minL2WithdrawalAmount; // Minimum L2 withdrawal amount for the asset
     uint8 marginMode; // 0 if disabled, 1 if enabled
+    uint16 loanToValue;
+    uint16 liquidationThreshold;
+    uint16 liquidationFactor;
+    uint32 liquidationFee;
   }
 
   /// @notice Serialize update asset pubData
@@ -429,7 +444,11 @@ library TxTypes {
       _tx.assetIndex,
       _tx.minL2TransferAmount,
       _tx.minL2WithdrawalAmount,
-      _tx.marginMode
+      _tx.marginMode,
+      _tx.loanToValue,
+      _tx.liquidationThreshold,
+      _tx.liquidationFactor,
+      _tx.liquidationFee
     );
   }
 }

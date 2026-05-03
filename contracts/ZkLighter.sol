@@ -95,7 +95,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     // Commit to the initialization parameters to ensure parameters are known at the time of upgrade initialization
     bytes32 upgradeParametersHash = keccak256(upgradeParameters);
     // Commits to 0 address for _additionalZkLighter, _desertVerifier and _stateRootUpgradeVerifier
-    bytes32 initializationParametersCommitment = 0xde70647bf19dac569ea4280738e32726097deef23138b4b4ffe454f0254d9b1d;
+    bytes32 initializationParametersCommitment = 0x35cb51cfbb8e906af981979026b526e878ef4acd1fe27c1b27f1c47f6736fb74;
     if (upgradeParametersHash != initializationParametersCommitment) {
       revert ZkLighter_InvalidUpgradeParameters();
     }
@@ -168,7 +168,6 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     uint64 minDepositTicks
   ) external nonReentrant onlyActive {
     governance.requireGovernor(msg.sender);
-
     if (assetIndex == NATIVE_ASSET_INDEX || assetConfigs[assetIndex].tokenAddress != address(0)) {
       revert ZkLighter_InvalidAssetIndex();
     }
@@ -268,7 +267,13 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
-  function registerAsset(uint8 _l1Decimals, uint8 _decimals, bytes32 _symbol, TxTypes.RegisterAsset calldata _params) external {
+  function registerAsset(
+    uint8 _l1Decimals,
+    uint8 _l2Decimals,
+    uint8 _priceDecimals,
+    bytes32 _symbol,
+    TxTypes.RegisterAsset calldata _params
+  ) external {
     delegateAdditional();
   }
 
