@@ -100,6 +100,14 @@ contract ZkLighterTest is ZkLighter {
     desertMode = enabled;
   }
 
+  function setDesertVerifierAddress(address newDesertVerifier) external {
+    desertVerifier = IDesertVerifier(newDesertVerifier);
+  }
+
+  function setStateRoot(bytes32 newStateRoot) external {
+    stateRoot = newStateRoot;
+  }
+
   function registerDefaultAssetConfigs() external {
     _registerDefaultAssetConfigs();
   }

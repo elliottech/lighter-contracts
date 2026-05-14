@@ -95,7 +95,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     // Commit to the initialization parameters to ensure parameters are known at the time of upgrade initialization
     bytes32 upgradeParametersHash = keccak256(upgradeParameters);
     // Commits to 0 address for _additionalZkLighter, _desertVerifier and _stateRootUpgradeVerifier
-    bytes32 initializationParametersCommitment = 0x35cb51cfbb8e906af981979026b526e878ef4acd1fe27c1b27f1c47f6736fb74;
+    bytes32 initializationParametersCommitment = 0xdf0010fac4c0b06c50a889fe2818bf9bcc80053bf672584ddee26330d94794a3;
     if (upgradeParametersHash != initializationParametersCommitment) {
       revert ZkLighter_InvalidUpgradeParameters();
     }
@@ -336,38 +336,47 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     uint256 stateRoot,
     uint48 _accountIndex,
     uint48 _masterAccountIndex,
+    address _l1Address,
     uint16 _assetIndex,
     uint128 _totalBaseAmount
   ) internal pure returns (bytes32) {
-    return keccak256(abi.encodePacked(stateRoot, _accountIndex, _masterAccountIndex, _assetIndex, _totalBaseAmount));
+    return keccak256(abi.encodePacked(stateRoot, _accountIndex, _masterAccountIndex, _l1Address, _assetIndex, _totalBaseAmount));
   }
 
   /// @notice Performs exit from zkLighter in desert mode
   function performDesert(
     uint48 _accountIndex,
-    uint48 _masterAccountIndex,
+    address _l1Address,
     uint16 _assetIndex,
     uint128 _totalBaseAmount,
     bytes calldata proof
   ) external nonReentrant {
     // Must be in desert mode
     if (!desertMode) {
-      revert ZkLighter_DesertModeInactive();
+      revert ZkLighter_DesertError();
     }
 
     if (accountPerformedDesertForAsset[_assetIndex][_accountIndex]) {
-      revert ZkLighter_AccountAlreadyPerformedDesertForAsset();
+      revert ZkLighter_DesertError();
+    }
+
+    // System accounts will pass their real l1 address, which will then be set to 0 here.
+    uint48 masterAccountIndex = getAccountIndexFromAddress(_l1Address);
+    if (masterAccountIndex == NIL_ACCOUNT_INDEX) {
+      revert ZkLighter_DesertError();
+    } else if (masterAccountIndex == TREASURY_ACCOUNT_INDEX || masterAccountIndex == INSURANCE_FUND_OPERATOR_ACCOUNT_INDEX) {
+      _l1Address = address(0);
     }
 
     uint256[] memory inputs = new uint256[](1);
-    bytes32 commitment = createExitCommitment(uint256(stateRoot), _accountIndex, _masterAccountIndex, _assetIndex, _totalBaseAmount);
+    bytes32 commitment = createExitCommitment(uint256(stateRoot), _accountIndex, masterAccountIndex, _l1Address, _assetIndex, _totalBaseAmount);
     inputs[0] = uint256(commitment) % BN254_MODULUS;
     bool success = desertVerifier.Verify(proof, inputs);
     if (!success) {
-      revert ZkLighter_DesertVerifyProofFailed();
+      revert ZkLighter_DesertError();
     }
 
-    increaseBalanceToWithdraw(_masterAccountIndex, _assetIndex, _totalBaseAmount);
+    increaseBalanceToWithdraw(masterAccountIndex, _assetIndex, _totalBaseAmount);
     accountPerformedDesertForAsset[_assetIndex][_accountIndex] = true;
   }
 
@@ -375,15 +384,15 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   function cancelOutstandingDepositsForDesertMode(uint64 _n, bytes[] memory _priorityPubData) external nonReentrant {
     // Must be in desert mode
     if (!desertMode) {
-      revert ZkLighter_DesertModeInactive();
+      revert ZkLighter_DesertError();
     }
 
     if (openPriorityRequestCount == 0 || _n == 0) {
-      revert ZkLighter_NoOutstandingDepositsForCancelation();
+      revert ZkLighter_DesertError();
     }
 
     if (_n > openPriorityRequestCount || _n != _priorityPubData.length) {
-      revert ZkLighter_InvalidParamsForCancelOutstandingDeposits();
+      revert ZkLighter_DesertError();
     }
 
     uint64 startIndex = executedPriorityRequestCount;
@@ -396,7 +405,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     uint64 currentPubDataIdx = 0;
     for (uint64 id = startIndex; id < startIndex + _n; ++id) {
       if (_priorityPubData[currentPubDataIdx].length > MAX_PRIORITY_REQUEST_PUBDATA_SIZE || _priorityPubData[currentPubDataIdx].length == 0) {
-        revert ZkLighter_InvalidParamsForCancelOutstandingDeposits();
+        revert ZkLighter_DesertError();
       }
 
       bytes memory paddedPubData = new bytes(MAX_PRIORITY_REQUEST_PUBDATA_SIZE);
@@ -406,12 +415,12 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
       pubDataPrefixHash = keccak256(abi.encodePacked(pubDataPrefixHash, paddedPubData));
       if (pubDataPrefixHash != priorityRequests[id].prefixHash) {
-        revert ZkLighter_DepositPubdataHashMismatch();
+        revert ZkLighter_DesertError();
       }
 
       if (uint8(_priorityPubData[currentPubDataIdx][0]) == TxTypes.PriorityPubDataTypeL1Deposit) {
         if (_priorityPubData[currentPubDataIdx].length != TxTypes.DEPOSIT_PUB_DATA_SIZE) {
-          revert ZkLighter_DepositPubdataHashMismatch();
+          revert ZkLighter_DesertError();
         }
         bytes memory depositPubdata = _priorityPubData[currentPubDataIdx];
         (uint48 accountIndex, uint16 assetIndex, uint64 baseAmount) = TxTypes.readDepositForDesertMode(depositPubdata);

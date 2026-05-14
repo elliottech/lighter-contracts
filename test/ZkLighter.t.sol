@@ -15,6 +15,8 @@ import {GovernanceTest} from "../contracts/test/GovernanceTest.sol";
 import {IGovernance} from "../contracts/interfaces/IGovernance.sol";
 import {IEvents} from "../contracts/interfaces/IEvents.sol";
 import {ZkLighterVerifierTest} from "../contracts/test/ZkLighterVerifierTest.sol";
+import {DesertVerifier} from "../contracts/DesertVerifier.sol";
+import {DesertVerifierTest} from "../contracts/test/DesertVerifierTest.sol";
 import {TxTypes} from "../contracts/lib/TxTypes.sol";
 
 /// Commit, Verify and Execute tests for ZkLighter contract
@@ -458,18 +460,18 @@ contract ZkLighterTests is Test {
     (uint128 balance1, ) = zklighter.getPendingBalances(assetIndex, address(testAddress));
     uint64 depositAmount = 1_000_000;
 
-    vm.expectRevert(IZkLighter.ZkLighter_DesertModeInactive.selector);
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
     zklighter.cancelOutstandingDepositsForDesertMode(1, new bytes[](1));
 
     zklighter.setDesertMode(true);
-    vm.expectRevert(IZkLighter.ZkLighter_NoOutstandingDepositsForCancelation.selector);
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
     zklighter.cancelOutstandingDepositsForDesertMode(1, new bytes[](1));
 
     zklighter.setOpenPriorityRequestCount(1);
-    vm.expectRevert(IZkLighter.ZkLighter_InvalidParamsForCancelOutstandingDeposits.selector);
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
     zklighter.cancelOutstandingDepositsForDesertMode(2, new bytes[](2));
 
-    vm.expectRevert(IZkLighter.ZkLighter_InvalidParamsForCancelOutstandingDeposits.selector);
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
     zklighter.cancelOutstandingDepositsForDesertMode(1, new bytes[](1));
 
     for (uint i = 0; i < 2; ++i) {
@@ -507,7 +509,7 @@ contract ZkLighterTests is Test {
       arr[0] = depositPubdata;
 
       if (i == 0) {
-        vm.expectRevert(IZkLighter.ZkLighter_DepositPubdataHashMismatch.selector);
+        vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
         zklighter.cancelOutstandingDepositsForDesertMode(1, arr);
       } else {
         zklighter.cancelOutstandingDepositsForDesertMode(1, arr);
@@ -516,6 +518,54 @@ contract ZkLighterTests is Test {
 
     (uint128 balance2, ) = zklighter.getPendingBalances(assetIndex, address(testAddress));
     assertEq(balance2 - balance1, depositAmount, "Pending balance should be increased by canceled deposit amount");
+  }
+
+  function test_performDesert_success() public {
+    uint48 masterAccountIndex = 4;
+    uint48 accountIndex = 8;
+    address l1Address = 0xB86C6cEc9c1Cf462523267e6D79ADdcbF685F73A;
+    uint16 assetIndex = 3;
+    uint128 totalBaseAmount = 413420151138;
+
+    // assertEq(zklighter.getAssetConfig(assetIndex).extensionMultiplier, 1_000_000, "extensionMultiplier must be 1_000_000 for proof to verify");
+
+    uint128 pendingBalance = zklighter.getPendingBalance(l1Address, assetIndex);
+    assertEq(pendingBalance, 0, "Pending balance should equal 0 before performDesert");
+
+    zklighter.setStateRoot(bytes32(0x0f96ce9c71cccb1d8517495dfe7709e725a3ce1b870eb05fec2d0dbe3a84a8a3));
+    zklighter.setAddressToAccountIndex(l1Address, masterAccountIndex);
+    zklighter.setDesertVerifierAddress(address(new DesertVerifier()));
+    zklighter.setDesertMode(true);
+
+    bytes
+      memory proof = hex"27edc41326cc6ca9dc3ccbc6a0dcf0123eb8bfe6749658269c41f6dd54a9125a1921ee3bbac5d2e93a10f60d6c5106569cbe6082e13dce6c2e2bee5f089bff282cca11201157920db5f5c1d7ae4793b63f27f79e5f789e882a2a2ccd3434087325c2c9e96390ba453c6ca6d6705daa59ae2ac6d071ffc315e14ccee0c9a4d0ca27c6792ae5272000974dea8c578a0d2b288c0d79b70ecb25936a1cceb8abd94a2c9f999dc42c95dfed6f95ac378f2c297731ad841f449e9d0c3968078e20a89326ae65537354e31f79be046046764b1d35041aa54123a0d5a62d677ae4ba6ad711684f2675df781878d9a8880034a9767481fba63478da52f9132431ebb1e05919b2a77de0d65894ec97359d0410addccf624370619e789e2e18fd87af83817b2e88e82b5a2af6849b36253edaa1702f1e3e63d8fe9440f5d8a7588d10f20a7a08e0e408dc7f36b7eebea0cceb36a190f5a54b79e2981a195a9f2817f092452b1139a47e80e6a67ec7cb66dac0fe13bfeea3b9c4e20fa61b6dc61bc83944adf608b43282ba9c9a3e6fe9e2cbcd2ac5f5c28ff1185909ea34dce415403173d2fe1a0f71a61d43283e793d53ad28271d5cc408eacf14fbe6ceea3a7e4faf71600425c5d0fcfac49a835cffe9ffb160382c230368c492880b2401174bbd76244ab01fe016eef9889a71892dd06a64d45b3ee2f2594ff4574901415c46b471233f842301470913ff8ff90e8e309efd3587453963260419310ae033e7b55b778f8ef82d199006f823b3078a8f43b068832703ecf5dbb42f7ff5b440aab422abc5790422bb7c9bd62ec2742fff25656f7a77b3ee6b9be42bafdf17f3d62b57e97349d72ba0536ee4b75eaa70f15f49e2f27ea09f70632689947ca3e5273bea2c09cd3110dba3ab3caf4284b082092894446c75fbf17b9abe28060a65396425572889d518f0f101b7613df54a4303bf5a22d9928104e2fab928f86122b20204c345f5410310424231faff3904573d9bb4defb4f6404a84e121017a66a8edcaad2761614023fb2fbb1be9cb58f82ec943471622ca4c79d19eacb8c85a2fe5465ecd95da10098adbedf2f9ca71007b209dc703e97ff56e92cc7c928be7a5afc3530f4af44290a737c60c6f31b840948bb1897d4080cd448d613ce391c11ccdf774185a63e2227d65c8b02c09521bdbebd19cecbea6ce10ae5e4d7b60809f62a9bf6f715c6";
+    zklighter.performDesert(accountIndex, l1Address, assetIndex, totalBaseAmount, proof);
+
+    // TREASURY_ACCOUNT_INDEX = 0, since l1Address == address(0) == treasury (uninitialized)
+    pendingBalance = zklighter.getPendingBalance(l1Address, assetIndex);
+    assertEq(pendingBalance, totalBaseAmount, "Pending balance should equal totalBaseAmount after performDesert");
+
+    // Should revert when already performed for this account+asset
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
+    zklighter.performDesert(accountIndex, l1Address, assetIndex, totalBaseAmount, proof);
+  }
+
+  function test_performDesert_fail_not_desert_mode() public {
+    DesertVerifierTest desertVerifier = new DesertVerifierTest();
+    zklighter.setDesertVerifierAddress(address(desertVerifier));
+
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
+    zklighter.performDesert(281474976710651, address(0), 2, 40000000000000, hex"AABB");
+  }
+
+  function test_performDesert_fail_nil_account() public {
+    DesertVerifierTest desertVerifier = new DesertVerifierTest();
+    zklighter.setDesertVerifierAddress(address(desertVerifier));
+    zklighter.setDesertMode(true);
+
+    // address(0x999) has no mapping and is not treasury/insurance fund -> NIL_ACCOUNT_INDEX
+    vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
+    zklighter.performDesert(281474976710651, address(0x999), 2, 40000000000000, hex"AABB");
   }
 
   function test_verifyBatch_success_priority_and_onchain() public {

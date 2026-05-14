@@ -139,17 +139,7 @@ interface IZkLighter is IEvents {
 
   error ZkLighter_InvalidAssetConfigParams();
 
-  error ZkLighter_DesertModeInactive();
-
-  error ZkLighter_DesertVerifyProofFailed();
-
-  error ZkLighter_AccountAlreadyPerformedDesertForAsset();
-
-  error ZkLighter_NoOutstandingDepositsForCancelation();
-
-  error ZkLighter_InvalidParamsForCancelOutstandingDeposits();
-
-  error ZkLighter_DepositPubdataHashMismatch();
+  error ZkLighter_DesertError();
 
   /// @notice Thrown when the number of blobs in a batch exceeds the maximum allowed
   error ZkLighter_InvalidBlobCount(uint256);
@@ -161,17 +151,11 @@ interface IZkLighter is IEvents {
 
   /// @notice Performs the Desert Exit, can be called only when desertMode is active
   /// @param _accountIndex Account index of the user who is performing the desert exit
-  /// @param _masterAccountIndex Master account index of the user who is performing the desert exit
+  /// @param _l1Address L1 address of the user who is performing the desert exit
   /// @param _assetIndex Asset index of the asset to be exited
   /// @param _totalBaseAmount Total base balance of the user for the asset to be exited
   /// @param proof Proof for the user assets
-  function performDesert(
-    uint48 _accountIndex,
-    uint48 _masterAccountIndex,
-    uint16 _assetIndex,
-    uint128 _totalBaseAmount,
-    bytes calldata proof
-  ) external;
+  function performDesert(uint48 _accountIndex, address _l1Address, uint16 _assetIndex, uint128 _totalBaseAmount, bytes calldata proof) external;
 
   /// @notice Cancels outstanding deposits, can be called only when desertMode is active
   /// @param _n Number of outstanding priority requests to be cancelled
