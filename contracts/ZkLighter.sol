@@ -95,7 +95,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     // Commit to the initialization parameters to ensure parameters are known at the time of upgrade initialization
     bytes32 upgradeParametersHash = keccak256(upgradeParameters);
     // Commits to 0 address for _additionalZkLighter, _desertVerifier and _stateRootUpgradeVerifier
-    bytes32 initializationParametersCommitment = 0xdf0010fac4c0b06c50a889fe2818bf9bcc80053bf672584ddee26330d94794a3;
+    bytes32 initializationParametersCommitment = 0x58c6f2a2ea875067fa37dbb3cfd02fde4534287f56ef2af30e3eb662f2afcc39;
     if (upgradeParametersHash != initializationParametersCommitment) {
       revert ZkLighter_InvalidUpgradeParameters();
     }
