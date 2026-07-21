@@ -731,12 +731,12 @@ describe('ZkLighter Tests', function () {
 
         await expect(zkLighter.connect(receiver1).withdraw(index, 3, 0, 0)).to.be.revertedWithCustomError(
           additionalZkLighter,
-          'AdditionalZkLighter_InvalidWithdrawAmount',
+          'AdditionalZkLighter_Error',
         );
 
         await expect(
           zkLighter.connect(receiver1).withdraw(index, 3, 0, BigNumber.from(2).pow(60).toString()),
-        ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidWithdrawAmount');
+        ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
         await expect(zkLighter.connect(receiver1).withdraw(index, 3, 2, 10n)).to.be.revertedWithoutReason();
 
@@ -759,12 +759,12 @@ describe('ZkLighter Tests', function () {
 
         await expect(zkLighter.connect(receiver1).withdraw(index, 1, 0, 0)).to.be.revertedWithCustomError(
           additionalZkLighter,
-          'AdditionalZkLighter_InvalidWithdrawAmount',
+          'AdditionalZkLighter_Error',
         );
 
         await expect(
           zkLighter.connect(receiver1).withdraw(index, 1, 0, BigNumber.from(2).pow(60).toString()),
-        ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidWithdrawAmount');
+        ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
         await expect(zkLighter.connect(receiver1).withdraw(index, 1, 2, 10n)).to.be.revertedWithoutReason();
 
@@ -798,7 +798,7 @@ describe('ZkLighter Tests', function () {
       ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidAccountIndex');
       await expect(
         zkLighter.connect(sender1).changePubKey((1n << 48n) - 2n, 255, randomBytes(40)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidApiKeyIndex');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
       await expect(
         zkLighter.connect(sender1).changePubKey((1n << 48n) - 2n, 0, randomBytes(41)),
       ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidPubKey');
@@ -937,19 +937,19 @@ describe('ZkLighter Tests', function () {
       // invalid isAsk
       await expect(zkLighter.connect(receiver1).createOrder(index, 1, 1, 1, 2, 1)).to.be.revertedWithCustomError(
         additionalZkLighter,
-        'AdditionalZkLighter_InvalidCreateOrderParameters',
+        'AdditionalZkLighter_Error',
       );
 
       // invalid price
       await expect(zkLighter.connect(receiver1).createOrder(index, 1, 1, 0, 1, 1)).to.be.revertedWithCustomError(
         additionalZkLighter,
-        'AdditionalZkLighter_InvalidCreateOrderParameters',
+        'AdditionalZkLighter_Error',
       );
 
       // invalid orderType
       await expect(zkLighter.connect(receiver1).createOrder(index, 1, 1, 1, 1, 2)).to.be.revertedWithCustomError(
         additionalZkLighter,
-        'AdditionalZkLighter_InvalidCreateOrderParameters',
+        'AdditionalZkLighter_Error',
       );
 
       // invalid marketIndex
@@ -990,12 +990,12 @@ describe('ZkLighter Tests', function () {
 
       await expect(zkLighter.connect(receiver1).burnShares(index, validPoolIndex, 0)).to.be.revertedWithCustomError(
         additionalZkLighter,
-        'AdditionalZkLighter_InvalidShareAmount',
+        'AdditionalZkLighter_Error',
       );
 
       await expect(
         zkLighter.connect(receiver1).burnShares(index, validPoolIndex, 1152921504606846976n),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidShareAmount');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
     });
 
     it('should success', async () => {
@@ -1104,14 +1104,14 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       await expect(
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       params.rawMarketData.maintenanceMarginFraction = 1;
@@ -1119,7 +1119,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       params.rawMarketData.maintenanceMarginFraction = 1;
@@ -1128,7 +1128,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       params.rawMarketData.maintenanceMarginFraction = 1;
@@ -1138,7 +1138,7 @@ describe('ZkLighter Tests', function () {
         zkLighter
           .connect(governorWallet)
           .createMarket(1, 1, ethers.encodeBytes32String('BTC'), serializeCreatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
     });
 
     it('should fail to create orderbook if interestRate is invalid', async () => {
@@ -1405,25 +1405,25 @@ describe('ZkLighter Tests', function () {
       params.rawMarketData.closeOutMarginFraction = 0;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       params.rawMarketData.maintenanceMarginFraction = 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       params.rawMarketData.maintenanceMarginFraction = 1;
       params.rawMarketData.minInitialMarginFraction = 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       params.rawMarketData.closeOutMarginFraction = 1;
       params.rawMarketData.maintenanceMarginFraction = 1;
@@ -1431,7 +1431,7 @@ describe('ZkLighter Tests', function () {
       params.rawMarketData.defaultInitialMarginFraction = 10_000 + 1;
       await expect(
         zkLighter.connect(governorWallet).updateMarket(serializeUpdatePerpsMarket(params)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidMarginFraction');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
     });
 
     it('should fail to update orderbook if interestRate is invalid', async () => {

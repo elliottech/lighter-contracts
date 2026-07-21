@@ -435,6 +435,7 @@ library TxTypes {
     uint16 liquidationThreshold;
     uint16 liquidationFactor;
     uint32 liquidationFee;
+    uint56 indexPriceDivider; // Extended asset balance * index price / indexPriceDivider = extended USDC value
   }
 
   /// @notice Serialize update asset pubData
@@ -448,7 +449,8 @@ library TxTypes {
       _tx.loanToValue,
       _tx.liquidationThreshold,
       _tx.liquidationFactor,
-      _tx.liquidationFee
+      _tx.liquidationFee,
+      _tx.indexPriceDivider
     );
   }
 }
