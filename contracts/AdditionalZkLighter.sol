@@ -240,11 +240,12 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       if (assetIndex == USDC_ASSET_INDEX && (loanToValue != ASSET_MARGIN_TICK || liquidationFee != 0)) {
         revert AdditionalZkLighter_InvalidMarginParameters();
       }
-    } else if (marginMode == uint8(TxTypes.AssetMarginMode.Disabled)) {
+    } else if (marginMode <= uint8(TxTypes.AssetMarginMode.PricedOnly)) {
+      // Disabled or PricedOnly
       if (assetIndex == USDC_ASSET_INDEX) {
         revert AdditionalZkLighter_InvalidMarginParameters();
       }
-      if (loanToValue != 0 || liquidationThreshold != 0 || liquidationFactor != 0 || liquidationFee != 0) {
+      if ((loanToValue | liquidationThreshold | liquidationFactor | liquidationFee) != 0) {
         revert AdditionalZkLighter_InvalidMarginParameters();
       }
     } else {

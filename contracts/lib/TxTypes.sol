@@ -17,7 +17,8 @@ library TxTypes {
   /// @notice Asset margin modes
   enum AssetMarginMode {
     Disabled, // 0
-    Enabled // 1
+    Enabled, // 1
+    PricedOnly // 2
   }
 
   /// @notice Asset destination / source type
