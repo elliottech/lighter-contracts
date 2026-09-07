@@ -793,9 +793,10 @@ describe('ZkLighter Tests', function () {
 
   describe('ChangePubKey', function () {
     it('should reverted', async () => {
+      // NIL_ACCOUNT_INDEX resolves to the sender's own account, so an unregistered sender is rejected
       await expect(
-        zkLighter.connect(sender1).changePubKey((1n << 48n) - 1n, 0, randomBytes(40)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidAccountIndex');
+        zkLighter.connect(sender1).changePubKey((1n << 48n) - 1n, 0, randomValidPubKey()),
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_AccountIsNotRegistered');
       await expect(
         zkLighter.connect(sender1).changePubKey((1n << 48n) - 2n, 255, randomBytes(40)),
       ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
@@ -824,6 +825,32 @@ describe('ZkLighter Tests', function () {
     it('should success', async () => {
       await depositUSDC(zkLighter, 10_000_000, usdc, sender1, receiver1);
       await changePubKey(zkLighter, receiver1, 0, randomValidPubKey());
+    });
+
+    it('should resolve NIL_ACCOUNT_INDEX to the sender account', async () => {
+      await depositUSDC(zkLighter, 10_000_000, usdc, sender1, receiver1);
+      const index = await getAccountIndex(zkLighter, receiver1);
+      const pubKey = randomValidPubKey();
+      const nextPriorityRequestId = await getNextPriorityRequestId(zkLighter);
+      const tx = await zkLighter.connect(receiver1).changePubKey((1n << 48n) - 1n, 0, pubKey);
+      await tx.wait();
+      const expirationTimestamp = await getExpirationTimestamp(zkLighter);
+      const pubData = encodePubData(PubDataTypeMap[PriorityPubDataType.L1ChangePubKey], [
+        PriorityPubDataType.L1ChangePubKey,
+        index,
+        index,
+        0,
+        pubKey,
+      ]);
+      await expect(tx)
+        .to.emit(zkLighter, 'NewPriorityRequest')
+        .withArgs(
+          receiver1.address,
+          nextPriorityRequestId,
+          PriorityPubDataType.L1ChangePubKey,
+          pubData,
+          expirationTimestamp,
+        );
     });
   });
 

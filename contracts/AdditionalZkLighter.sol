@@ -153,8 +153,11 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
   /// @notice Change Lighter public key for an account api key slot
   function changePubKey(uint48 _accountIndex, uint8 _apiKeyIndex, bytes calldata _pubKey) external nonReentrant onlyActive {
-    if (_accountIndex > MAX_ACCOUNT_INDEX) {
-      revert AdditionalZkLighter_InvalidAccountIndex();
+    if (_accountIndex == NIL_ACCOUNT_INDEX) {
+      // NIL_ACCOUNT_INDEX = "the caller's own master account". Resolved here so callers don't need to know
+      // their index up front (e.g. a batch signed before the first deposit assigns one).
+      // Every other uint48 value is <= MAX_ACCOUNT_INDEX, so no explicit bounds check is needed.
+      _accountIndex = validateAndGetAccountIndexFromAddress(msg.sender);
     }
     if (_apiKeyIndex > MAX_API_KEY_INDEX) {
       revert AdditionalZkLighter_Error();

@@ -176,7 +176,7 @@ interface IZkLighter is IEvents {
   function depositBatch(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external;
 
   /// @notice Change public key of a Lighter account
-  /// @param _accountIndex Account index
+  /// @param _accountIndex Account index, or NIL_ACCOUNT_INDEX to target the caller's own master account
   /// @param _apiKeyIndex API key index
   /// @param _pubKey New public key (40 bytes)
   function changePubKey(uint48 _accountIndex, uint8 _apiKeyIndex, bytes calldata _pubKey) external;
