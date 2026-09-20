@@ -131,7 +131,7 @@ export function calculateCommitment(batch: CommitBatchInfo, blobCommitment: stri
 }
 
 export enum PriorityPubDataType {
-  Empty = 40,
+  Empty = 60,
   // L1 transactions
   L1Deposit,
   L1ChangePubKey,
@@ -181,7 +181,7 @@ export const PubDataTypeMap = {
   [PriorityPubDataType.L1ChangePubKey]: ['uint8', 'uint48', 'uint48', 'uint8', 'bytes'],
   [PriorityPubDataType.L1Withdraw]: ['uint8', 'uint48', 'uint48', 'uint16', 'uint8', 'uint64'],
   [PriorityPubDataType.L1CancelAllOrders]: ['uint8', 'uint48', 'uint48'],
-  [PriorityPubDataType.L1CreateOrder]: ['uint8', 'uint48', 'uint48', 'uint16', 'uint48', 'uint32', 'uint8', 'uint8'],
+  [PriorityPubDataType.L1CreateOrder]: ['uint8', 'uint48', 'uint48', 'uint64', 'uint48', 'uint32', 'uint8', 'uint8'],
   [PriorityPubDataType.L1BurnShares]: ['uint8', 'uint48', 'uint48', 'uint48', 'uint64'],
   [PriorityPubDataType.L1RegisterAsset]: ['uint8', 'uint16', 'uint56', 'uint64', 'uint64', 'uint8'],
   [PriorityPubDataType.L1UpdateAsset]: ['uint8', 'uint16', 'uint64', 'uint64', 'uint8'],

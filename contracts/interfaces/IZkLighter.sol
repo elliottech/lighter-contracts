@@ -252,14 +252,14 @@ interface IZkLighter is IEvents {
   /// @param _baseAmount Amount to withdraw
   function withdraw(uint48 _accountIndex, uint16 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external;
 
-  /// @notice Create an order for a Lighter account
+  /// @notice Create an order in perps market for a Lighter account
   /// @param _accountIndex Account index
-  /// @param _marketIndex Market index
+  /// @param _publicMarketIndex Public market index
   /// @param _baseAmount Amount of base token
   /// @param _price Price of the order
   /// @param _isAsk Flag to indicate if the order is ask or bid
   /// @param _orderType Order type
-  function createOrder(uint48 _accountIndex, uint16 _marketIndex, uint48 _baseAmount, uint32 _price, uint8 _isAsk, uint8 _orderType) external;
+  function createOrder(uint48 _accountIndex, uint16 _publicMarketIndex, uint48 _baseAmount, uint32 _price, uint8 _isAsk, uint8 _orderType) external;
 
   /// @notice Burn shares of an account in a public pool
   /// @param _accountIndex Account index

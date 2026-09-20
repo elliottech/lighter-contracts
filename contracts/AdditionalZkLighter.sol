@@ -18,7 +18,6 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   error AdditionalZkLighter_InvalidAssetIndex();
   error AdditionalZkLighter_InvalidDepositAmount();
   error AdditionalZkLighter_InvalidAccountIndex();
-  error AdditionalZkLighter_InvalidPubKey();
   error AdditionalZkLighter_InvalidMarketStatus();
   error AdditionalZkLighter_InvalidMarginParameters();
   error AdditionalZkLighter_InvalidExtensionMultiplier();
@@ -165,7 +164,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
     // Verify that the public key is of the correct length
     if (_pubKey.length != PUB_KEY_BYTES_SIZE) {
-      revert AdditionalZkLighter_InvalidPubKey();
+      revert AdditionalZkLighter_Error();
     }
 
     // Verify that the public key is in connonical form and not zero
@@ -177,14 +176,14 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
         elemValue = elemValue + (uint64(uint8(elem[j])) << (8 * j));
       }
       if (elemValue >= GOLDILOCKS_MODULUS) {
-        revert AdditionalZkLighter_InvalidPubKey();
+        revert AdditionalZkLighter_Error();
       }
       if (elemValue != 0) {
         isZero = false;
       }
     }
     if (isZero) {
-      revert AdditionalZkLighter_InvalidPubKey();
+      revert AdditionalZkLighter_Error();
     }
 
     // Add priority request to the queue
@@ -522,16 +521,16 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     addPriorityRequest(TxTypes.PriorityPubDataTypeL1Withdraw, pubData, pubData);
   }
 
-  /// @notice Create an order for a Lighter account
+  /// @notice Create an order in perps market for a Lighter account
   /// @param _accountIndex Account index
-  /// @param _marketIndex Market index
+  /// @param _publicMarketIndex Public market index
   /// @param _baseAmount Amount of base token
   /// @param _price Price of the order
   /// @param _isAsk Flag to indicate if the order is ask or bid
   /// @param _orderType Order type
   function createOrder(
     uint48 _accountIndex,
-    uint16 _marketIndex,
+    uint16 _publicMarketIndex,
     uint48 _baseAmount,
     uint32 _price,
     uint8 _isAsk,
@@ -540,8 +539,8 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_accountIndex > MAX_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
-    if (_marketIndex > MAX_PERPS_MARKET_INDEX) {
-      revert AdditionalZkLighter_InvalidMarketType();
+    if (_publicMarketIndex > MAX_PUBLIC_MARKET_INDEX || _publicMarketIndex == NIL_PUBLIC_MARKET_INDEX) {
+      revert AdditionalZkLighter_Error();
     }
     if (_isAsk > 1) {
       revert AdditionalZkLighter_Error();
@@ -560,7 +559,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     TxTypes.CreateOrder memory _tx = TxTypes.CreateOrder({
       accountIndex: _accountIndex,
       masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender),
-      marketIndex: _marketIndex,
+      publicMarketIndex: _publicMarketIndex,
       baseAmount: _baseAmount,
       price: _price,
       isAsk: _isAsk,

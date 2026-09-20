@@ -802,10 +802,10 @@ describe('ZkLighter Tests', function () {
       ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
       await expect(
         zkLighter.connect(sender1).changePubKey((1n << 48n) - 2n, 0, randomBytes(41)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidPubKey');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
       await expect(
         zkLighter.connect(sender1).changePubKey((1n << 48n) - 2n, 0, Buffer.alloc(40, 0)),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidPubKey');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       await expect(
         zkLighter
@@ -815,7 +815,7 @@ describe('ZkLighter Tests', function () {
             0,
             Buffer.from([1n, 2n, 3n, 4n, GOLDILOCKS_MODULUS].flatMap(toLittleEndianBytes)),
           ),
-      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_InvalidPubKey');
+      ).to.be.revertedWithCustomError(additionalZkLighter, 'AdditionalZkLighter_Error');
 
       await expect(
         zkLighter.connect(sender1).changePubKey((1n << 48n) - 2n, 0, randomValidPubKey()),
@@ -977,12 +977,6 @@ describe('ZkLighter Tests', function () {
       await expect(zkLighter.connect(receiver1).createOrder(index, 1, 1, 1, 1, 2)).to.be.revertedWithCustomError(
         additionalZkLighter,
         'AdditionalZkLighter_Error',
-      );
-
-      // invalid marketIndex
-      await expect(zkLighter.connect(receiver1).createOrder(index, 2049, 1, 1, 1, 1)).to.be.revertedWithCustomError(
-        additionalZkLighter,
-        'AdditionalZkLighter_InvalidMarketType',
       );
     });
 

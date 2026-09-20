@@ -28,19 +28,19 @@ library TxTypes {
   }
 
   /// @notice zklighter priority request types
-  uint8 constant PriorityPubDataTypeEmpty = 40;
-  uint8 constant PriorityPubDataTypeL1Deposit = 41;
-  uint8 constant PriorityPubDataTypeL1ChangePubKey = 42;
-  uint8 constant PriorityPubDataTypeL1CreateMarket = 43;
-  uint8 constant PriorityPubDataTypeL1UpdateMarket = 44;
-  uint8 constant PriorityPubDataTypeL1CancelAllOrders = 45;
-  uint8 constant PriorityPubDataTypeL1Withdraw = 46;
-  uint8 constant PriorityPubDataTypeL1CreateOrder = 47;
-  uint8 constant PriorityPubDataTypeL1BurnShares = 48;
-  uint8 constant PriorityPubDataTypeL1RegisterAsset = 49;
-  uint8 constant PriorityPubDataTypeL1UpdateAsset = 50;
-  uint8 constant PriorityPubDataTypeL1UnstakeAssets = 51;
-  uint8 constant PriorityPubDataTypeL1SetSystemConfig = 52;
+  uint8 constant PriorityPubDataTypeEmpty = 60;
+  uint8 constant PriorityPubDataTypeL1Deposit = 61;
+  uint8 constant PriorityPubDataTypeL1ChangePubKey = 62;
+  uint8 constant PriorityPubDataTypeL1CreateMarket = 63;
+  uint8 constant PriorityPubDataTypeL1UpdateMarket = 64;
+  uint8 constant PriorityPubDataTypeL1CancelAllOrders = 65;
+  uint8 constant PriorityPubDataTypeL1Withdraw = 66;
+  uint8 constant PriorityPubDataTypeL1CreateOrder = 67;
+  uint8 constant PriorityPubDataTypeL1BurnShares = 68;
+  uint8 constant PriorityPubDataTypeL1RegisterAsset = 69;
+  uint8 constant PriorityPubDataTypeL1UpdateAsset = 70;
+  uint8 constant PriorityPubDataTypeL1UnstakeAssets = 71;
+  uint8 constant PriorityPubDataTypeL1SetSystemConfig = 72;
 
   /// @notice zklighter onchain transaction types
   enum OnChainPubDataType {
@@ -303,7 +303,7 @@ library TxTypes {
   struct CreateOrder {
     uint48 accountIndex;
     uint48 masterAccountIndex;
-    uint16 marketIndex;
+    uint64 publicMarketIndex;
     uint48 baseAmount;
     uint32 price;
     uint8 isAsk;
@@ -316,7 +316,7 @@ library TxTypes {
       uint8(PriorityPubDataTypeL1CreateOrder),
       _tx.accountIndex,
       _tx.masterAccountIndex,
-      _tx.marketIndex,
+      _tx.publicMarketIndex,
       _tx.baseAmount,
       _tx.price,
       _tx.isAsk,

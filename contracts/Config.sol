@@ -46,6 +46,12 @@ contract Config {
   /// @dev Max spot market index that could be registered to the exchange
   uint16 public constant MAX_SPOT_MARKET_INDEX = 4094; // 2 ** 12 - 2
 
+  /// @dev Max public market index that could be registered to the exchange
+  uint64 public constant MAX_PUBLIC_MARKET_INDEX = 2 ** 48 - 1;
+
+  /// @dev Nil public market index
+  uint64 public constant NIL_PUBLIC_MARKET_INDEX = 255;
+
   /// @dev Max price an order can have
   uint32 public constant MAX_ORDER_PRICE = 2 ** 32 - 1;
 
