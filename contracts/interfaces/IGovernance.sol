@@ -28,6 +28,12 @@ interface IGovernance {
   /// @notice Thrown when the validator address is invalid
   error ZkLighter_Governance_InvalidValidator();
 
+  /// @notice Thrown when implementation contract calls the initialise function on self
+  error ZkLighter_Governance_CannotBeInitialisedByImpl();
+
+  /// @notice Thrown when upgrade address(this) is the implementation
+  error ZkLighter_Governance_OnlyProxyCanCallUpgrade();
+
   /// @notice Change current governor
   /// @param _newGovernor Address of the new governor
   function changeGovernor(address _newGovernor) external;
@@ -47,4 +53,7 @@ interface IGovernance {
   /// @notice Check if specified address is validator
   /// @param _address Address to check
   function isActiveValidator(address _address) external view;
+
+  /// @notice Revert if the system is paused by any of the guardians
+  function requireUnpaused() external view;
 }

@@ -6,10 +6,11 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "./interfaces/IGovernance.sol";
 import "./Config.sol";
+import "./EmergencyPause.sol";
 
 /// @title zkLighter Governance Contract
 /// @author zkLighter Team
-contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgradeable {
+contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgradeable, EmergencyPause {
   /// @notice USDC is the only allowed asset to be deposited, which increases collateral.
   IERC20 public usdc;
 
@@ -19,6 +20,8 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
   /// @notice Validators
   mapping(address => bool) public validators;
 
+  address private immutable governanceImplementation;
+
   // OpenZeppelin Contracts (last updated v4.9.0) (proxy/utils/Initializable.sol)
   // * CAUTION: When used with inheritance, manual care must be taken to not invoke a parent initializer twice, or to ensure */
   // * that all initializers are idempotent. This is not verified automatically as constructors are by Solidity. */
@@ -27,6 +30,8 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
   // * contract, which may impact the proxy. To prevent the implementation contract from being used, you should invoke */
   // * the {_disableInitializers} function in the constructor to automatically lock it when it is deployed: */
   constructor() {
+    governanceImplementation = address(this);
+
     _disableInitializers();
   }
 
@@ -35,6 +40,10 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
   ///     _networkGovernor The address of network governor
   ///     _usdcAddress The address of USDC contract
   function initialize(bytes calldata initializationParameters) external initializer {
+    if (address(this) == governanceImplementation) {
+      revert ZkLighter_Governance_CannotBeInitialisedByImpl();
+    }
+
     __ReentrancyGuard_init();
 
     (address _networkGovernor, address _usdcAddress) = abi.decode(initializationParameters, (address, address));
@@ -55,8 +64,11 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
 
   /// @notice Governance contract upgrade. Can be external because Proxy contract intercepts illegal calls of this function
   /// @param upgradeParameters Encoded representation of upgrade parameters
-  // solhint-disable-next-line no-empty-blocks
-  function upgrade(bytes calldata upgradeParameters) external {}
+  function upgrade(bytes calldata upgradeParameters) external nonReentrant {
+    if (address(this) == governanceImplementation) {
+      revert ZkLighter_Governance_OnlyProxyCanCallUpgrade();
+    }
+  }
 
   /// @notice Change current governor
   /// @param _newGovernor Address of the new governor
@@ -80,7 +92,7 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
   }
 
   /// @notice Check if specified address is the governor
-  modifier onlyGovernor() {
+  modifier onlyGovernor() override {
     requireGovernor(msg.sender);
     _;
   }
@@ -98,6 +110,13 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
   function isActiveValidator(address _address) external view {
     if (!validators[_address]) {
       revert ZkLighter_Governance_InvalidValidator();
+    }
+  }
+
+  function requireUnpaused() external view {
+    EmergencyPauseStorage storage $ = _emergencyPauseStorage();
+    if (_paused($.pauseGuardianState) || _paused($.emergencyGuardianState)) {
+      revert Paused();
     }
   }
 }

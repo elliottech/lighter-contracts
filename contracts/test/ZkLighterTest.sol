@@ -100,6 +100,10 @@ contract ZkLighterTest is ZkLighter {
     desertMode = enabled;
   }
 
+  function setPendingBalance(uint16 assetIndex, uint48 accountIndex, uint128 balanceToWithdraw) external {
+    pendingAssetBalances[assetIndex][accountIndex].balanceToWithdraw = balanceToWithdraw;
+  }
+
   function setDesertVerifierAddress(address newDesertVerifier) external {
     desertVerifier = IDesertVerifier(newDesertVerifier);
   }

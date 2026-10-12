@@ -12,6 +12,7 @@ import {IZkLighter} from "../contracts/interfaces/IZkLighter.sol";
 import {Storage} from "../contracts/Storage.sol";
 import {OwnableERC20} from "../contracts/test/OwnableERC20.sol";
 import {GovernanceTest} from "../contracts/test/GovernanceTest.sol";
+import {EmergencyPause} from "../contracts/EmergencyPause.sol";
 import {IGovernance} from "../contracts/interfaces/IGovernance.sol";
 import {IEvents} from "../contracts/interfaces/IEvents.sol";
 import {ZkLighterVerifierTest} from "../contracts/test/ZkLighterVerifierTest.sol";
@@ -693,6 +694,37 @@ contract ZkLighterTests is Test {
     assertEq(zklighter.openPriorityRequestCount(), 0, "Open priority request count should be 0");
     assertEq(zklighter.executedPriorityRequestCount(), 1, "Executed priority request count should be 1");
     assertEq(zklighter.executedBatchesCount(), 2, "Executed batches count should be 2");
+  }
+
+  function test_withdrawPendingBalance_fail_paused() public {
+    address pauseGuardian = address(0x9A1);
+    governance.overrideGuardians(pauseGuardian, address(0x9A2));
+    uint16 usdcAssetIndex = 3;
+    zklighter.setPendingBalance(usdcAssetIndex, testAccountIndex, 1250);
+
+    vm.prank(pauseGuardian);
+    governance.pauseSystem(2 hours);
+
+    vm.expectRevert(EmergencyPause.Paused.selector);
+    zklighter.withdrawPendingBalance(testAddress, usdcAssetIndex, 1250);
+  }
+
+  function test_withdrawPendingBalance_success_paused_in_desert_mode() public {
+    address pauseGuardian = address(0x9A1);
+    governance.overrideGuardians(pauseGuardian, address(0x9A2));
+    uint16 usdcAssetIndex = 3;
+    uint128 usdcAmount = 1250;
+    zklighter.setPendingBalance(usdcAssetIndex, testAccountIndex, usdcAmount);
+
+    vm.prank(pauseGuardian);
+    governance.pauseSystem(2 hours);
+    zklighter.setDesertMode(true);
+
+    uint256 oldUSDCBalance = usdc.balanceOf(testAddress);
+    zklighter.withdrawPendingBalance(testAddress, usdcAssetIndex, usdcAmount);
+
+    assertEq(usdc.balanceOf(testAddress), oldUSDCBalance + usdcAmount, "USDC balance should be increased by withdrawn amount");
+    assertEq(zklighter.getPendingBalance(testAddress, usdcAssetIndex), 0, "Pending balance should be decreased after withdrawal");
   }
 
   // Execute and withdraw ETH test

@@ -95,7 +95,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     // Commit to the initialization parameters to ensure parameters are known at the time of upgrade initialization
     bytes32 upgradeParametersHash = keccak256(upgradeParameters);
     // Commits to 0 address for _additionalZkLighter, _desertVerifier and _stateRootUpgradeVerifier
-    bytes32 initializationParametersCommitment = 0x4e8377e53c38065592f51f387f35d8874de5589d485c35c0f085edc4c8a4d589;
+    bytes32 initializationParametersCommitment = 0xc2d85da579de0a6d96e07f3837ddc3249c243a679fe7a4eaab79702a70a0d73d;
     if (upgradeParametersHash != initializationParametersCommitment) {
       revert ZkLighter_InvalidUpgradeParameters();
     }
@@ -436,7 +436,8 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
   /// @inheritdoc IZkLighter
   function commitBatch(CommitBatchInfo calldata newBatchData, StoredBatchInfo calldata lastStoredBatch) external nonReentrant onlyActive {
-    governance.isActiveValidator(msg.sender);
+    _requireActiveValidator();
+    _requireUnpaused();
 
     if (newBatchData.pubdataCommitments.length == 0) {
       revert ZkLighter_InvalidBlobCommitmentParams();
@@ -520,7 +521,8 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
   /// @inheritdoc IZkLighter
   function verifyBatch(StoredBatchInfo memory batch, bytes calldata proof) external nonReentrant onlyActive {
-    governance.isActiveValidator(msg.sender);
+    _requireActiveValidator();
+    _requireUnpaused();
 
     if (batch.batchNumber != verifiedBatchesCount + 1) {
       revert ZkLighter_VerifyBatchNotInOrder();
@@ -595,6 +597,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   function executeBatches(StoredBatchInfo[] memory batches, bytes[] memory onChainOperationsPubData) external nonReentrant onlyActive {
+    _requireUnpaused();
     if (batches.length != onChainOperationsPubData.length) {
       revert ZkLighter_ExecuteInputLengthMismatch();
     }
@@ -636,7 +639,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
   /// @inheritdoc IZkLighter
   function revertBatches(StoredBatchInfo[] memory _batchesToRevert, StoredBatchInfo memory _remainingBatch) external nonReentrant onlyActive {
-    governance.isActiveValidator(msg.sender);
+    _requireActiveValidator();
 
     for (uint32 i = 0; i < _batchesToRevert.length; ++i) {
       StoredBatchInfo memory storedBatchInfo = _batchesToRevert[i];
@@ -690,6 +693,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
   /// @inheritdoc IZkLighter
   function transferERC20(IERC20 _token, address _to, uint256 _amount, uint256 _maxAmount) external returns (uint256) {
+    _requireUnpaused();
     // can be called only from this contract as one "external" call (to revert all this function state changes if it is needed)
     if (msg.sender != address(this)) {
       revert ZkLighter_OnlyZkLighter();
@@ -706,6 +710,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
   /// @inheritdoc IZkLighter
   function transferETH(address _to, uint256 _amount) external returns (uint256) {
+    _requireUnpaused();
     // can be called only from this contract as one "external" call (to revert all this function state changes if it is needed)
     if (msg.sender != address(this)) {
       revert ZkLighter_OnlyZkLighter();
@@ -878,6 +883,18 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     if (result != BLS_MODULUS) {
       revert ZkLighter_InvalidPointEvaluationParams();
     }
+  }
+
+  /// @dev Desert mode is the trustless exit path; a pause must never block it.
+  function _requireUnpaused() private view {
+    if (!desertMode) {
+      governance.requireUnpaused();
+    }
+  }
+
+  /// @dev Emitting the external call once keeps ZkLighter under the EIP-170 size limit.
+  function _requireActiveValidator() private view {
+    governance.isActiveValidator(msg.sender);
   }
 
   /// @notice Verifies if the sent blob commitment data is consistent with the blob itself

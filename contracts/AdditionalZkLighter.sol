@@ -152,12 +152,6 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
 
   /// @notice Change Lighter public key for an account api key slot
   function changePubKey(uint48 _accountIndex, uint8 _apiKeyIndex, bytes calldata _pubKey) external nonReentrant onlyActive {
-    if (_accountIndex == NIL_ACCOUNT_INDEX) {
-      // NIL_ACCOUNT_INDEX = "the caller's own master account". Resolved here so callers don't need to know
-      // their index up front (e.g. a batch signed before the first deposit assigns one).
-      // Every other uint48 value is <= MAX_ACCOUNT_INDEX, so no explicit bounds check is needed.
-      _accountIndex = validateAndGetAccountIndexFromAddress(msg.sender);
-    }
     if (_apiKeyIndex > MAX_API_KEY_INDEX) {
       revert AdditionalZkLighter_Error();
     }
@@ -186,10 +180,18 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       revert AdditionalZkLighter_Error();
     }
 
+    uint48 masterAccountIndex = validateAndGetAccountIndexFromAddress(msg.sender);
+    if (_accountIndex == NIL_ACCOUNT_INDEX) {
+      // NIL_ACCOUNT_INDEX = "the caller's own master account". Resolved here so callers don't need to know
+      // their index up front (e.g. a batch signed before the first deposit assigns one).
+      // Every other uint48 value is <= MAX_ACCOUNT_INDEX, so no explicit bounds check is needed.
+      _accountIndex = masterAccountIndex;
+    }
+
     // Add priority request to the queue
     TxTypes.ChangePubKey memory _tx = TxTypes.ChangePubKey({
       accountIndex: _accountIndex,
-      masterAccountIndex: validateAndGetAccountIndexFromAddress(msg.sender),
+      masterAccountIndex: masterAccountIndex,
       apiKeyIndex: _apiKeyIndex,
       pubKey: _pubKey
     });
@@ -201,10 +203,16 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param _params Config parameters
   function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external nonReentrant onlyActive {
     governance.requireGovernor(msg.sender);
-    if (_params.liquidityPoolCooldownPeriod > MAX_CONFIG_PERIOD || _params.stakingPoolLockupPeriod > MAX_CONFIG_PERIOD) {
+    if (_params.liquidityPoolCooldownPeriod > MAX_CONFIG_PERIOD) {
       revert AdditionalZkLighter_Error();
     }
-    if (_params.liquidityPoolIndex > MAX_ACCOUNT_INDEX || _params.stakingPoolIndex > MAX_ACCOUNT_INDEX) {
+    if (_params.stakingPoolLockupPeriod > MAX_CONFIG_PERIOD) {
+      revert AdditionalZkLighter_Error();
+    }
+    if (_params.liquidityPoolIndex > MAX_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
+    }
+    if (_params.stakingPoolIndex > MAX_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
     validateMarketFeeParams(_params.maxIntegratorPerpsTakerFee, _params.maxIntegratorPerpsMakerFee);
@@ -497,6 +505,9 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param _accountIndex Account index to withdraw from
   /// @param _baseAmount Amount of base token to withdraw, in ticks
   function withdraw(uint48 _accountIndex, uint16 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external nonReentrant onlyActive {
+    if (_accountIndex > MAX_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
+    }
     AssetConfig memory assetConfig = validateAndGetAssetConfig(_assetIndex);
     if (assetConfig.withdrawalsEnabled == 0) {
       revert AdditionalZkLighter_InvalidAssetIndex();
@@ -575,7 +586,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param _publicPoolIndex Public pool index
   /// @param _shareAmount Amount of shares to burn
   function burnShares(uint48 _accountIndex, uint48 _publicPoolIndex, uint64 _shareAmount) external nonReentrant onlyActive {
-    if (_accountIndex > MAX_ACCOUNT_INDEX || _publicPoolIndex > MAX_ACCOUNT_INDEX) {
+    if (_accountIndex > MAX_ACCOUNT_INDEX) {
+      revert AdditionalZkLighter_InvalidAccountIndex();
+    }
+    if (_publicPoolIndex > MAX_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
     if (_accountIndex == _publicPoolIndex) {
@@ -584,7 +598,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (_publicPoolIndex <= MAX_MASTER_ACCOUNT_INDEX) {
       revert AdditionalZkLighter_InvalidAccountIndex();
     }
-    if (_shareAmount < MIN_POOL_SHARES_TO_MINT_OR_BURN || _shareAmount > MAX_POOL_SHARES_TO_MINT_OR_BURN) {
+    if (_shareAmount < MIN_POOL_SHARES_TO_MINT_OR_BURN) {
+      revert AdditionalZkLighter_Error();
+    }
+    if (_shareAmount > MAX_POOL_SHARES_TO_MINT_OR_BURN) {
       revert AdditionalZkLighter_Error();
     }
 
