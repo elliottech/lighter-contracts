@@ -2,9 +2,9 @@
 
 Preview of the contracts for Lighter EVM devnet, including L1 settlement, interoperability, and token gateways.
 
-**These contracts have undergone NO security processes. They are a preview only and are NOT production-ready. Do not use them in production or with real funds.**
+**These contracts have not undergone a production security process. They are a preview only and are NOT production-ready. Do not use them in production or with real funds.**
 
-Please report security issues privately to [security@axiom.xyz](mailto:security@axiom.xyz).
+Please report security issues privately to [security@lighter.xyz](mailto:security@lighter.xyz).
 
 ## Build
 
@@ -21,3 +21,5 @@ yarn build
 ## License
 
 [Business Source License 1.1](LICENSE), unless a file's SPDX identifier specifies otherwise.
+
+Third-party code and its licences are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
