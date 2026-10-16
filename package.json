@@ -1,0 +1,18 @@
+{
+  "name": "lighter-evm-devnet-contracts-preview",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lighter EVM Devnet Contracts Preview",
+  "license": "BUSL-1.1",
+  "scripts": {
+    "build": "forge build"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "4.9.6",
+    "@openzeppelin/contracts-upgradeable": "4.9.6"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "yarn@1.22.22"
+}
