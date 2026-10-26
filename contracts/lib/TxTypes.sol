@@ -526,8 +526,7 @@ library TxTypes {
   uint8 constant EvmWriteTypeFinalizeEvmLink = 0x45;
   uint8 constant EvmWriteTypeSendToEvm = 0x46;
   uint8 constant EvmWriteTypeBurnShares = 0x47;
-  // Types 72-75 (0x48-0x4b) are reserved for native-asset operations.
-  uint8 constant EvmWriteTypeWithdrawToL1Address = 0x4c;
+  uint8 constant EvmWriteTypeWithdrawToL1Address = 0x48;
 
   /// @notice Serialize EVM change pubkey request
   /// Layout: type(1) | accountIndex(6) | apiKeyIndex(1) | pubKey(N)
@@ -657,7 +656,7 @@ library TxTypes {
     return abi.encodePacked(EvmWriteTypeBurnShares, accountIndex, publicPoolIndex, shareAmount);
   }
 
-  /// @notice Serialize EVM withdraw to L1 address request (0x4c).
+  /// @notice Serialize EVM withdraw to L1 address request (0x48).
   /// Layout: type(1) | accountIndex(6) | assetIndex(4) | l1Recipient(20) | routeType(1) | baseAmount(8) = 40 bytes
   function writeEvmWithdrawToL1Address(
     uint48 accountIndex,

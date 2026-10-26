@@ -16,6 +16,8 @@ contract EvmReplayableMessenger {
   error EvmReplayableMessenger_InvalidFromAddress();
   error EvmReplayableMessenger_MessageExecutionFailed(bytes returndata);
 
+  event MessageRelayed(bytes32 indexed messageHash);
+
   // keccak256(abi.encode(uint256(keccak256("lighter.storage.EvmReplayableMessengerStorage")) - 1)) & ~bytes32(uint256(0xff))
   bytes32 private constant EvmReplayableMessengerStorageLocation = 0xfc36f686b9475704530f8525be14bd93f5848d0ebb0c6c8dc8c5a7ff58949300;
 
@@ -60,6 +62,13 @@ contract EvmReplayableMessenger {
     }
 
     if (!success) revert EvmReplayableMessenger_MessageExecutionFailed(returndata);
+
+    emit MessageRelayed(messageHash);
+  }
+
+  /// Whether the message with this hash, keccak256(abi.encodePacked(from, to, value, nonce, message)), has been relayed
+  function isExecuted(bytes32 messageHash) external view returns (bool) {
+    return _getEvmReplayableMessengerStorage().executedMessages[messageHash];
   }
 
   function xDomainSender() external view returns (address sender) {

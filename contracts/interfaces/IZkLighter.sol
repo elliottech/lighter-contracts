@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "../Storage.sol";
+import {ExtendableStorage} from "../ExtendableStorage.sol";
 import "./IEvents.sol";
 import "../lib/TxTypes.sol";
 
@@ -307,11 +308,15 @@ interface IZkLighter is IEvents {
   /// @dev Zero if the batch has not been verified, was reverted, or has no EVM L1 calls
   function evmL1CallsRoots(uint64 batchNumber) external view returns (bytes32);
 
-  /// @notice Executes a Core-originated L1 call whose hash batch execution persisted.
-  function executeCoreL1Call(address l2Sender_, address target, uint256 value, uint256 msgNonce, bytes calldata data) external;
+  /// @notice Returns the status of an L1 call hash
+  /// @dev Ready once an executed batch, or desert mode, persists a Core call; Fulfilled once either path fulfills the call
+  function l1CallStatus(bytes32 l1CallHash) external view returns (ExtendableStorage.L1CallStatus);
 
-  /// @notice Executes an EVM-originated L1 call committed by an executed batch.
-  function executeEvmL1Call(
+  /// @notice Fulfills a Core-originated L1 call whose hash batch execution persisted.
+  function fulfillCoreL1Call(address l2Sender_, address target, uint256 value, uint256 msgNonce, bytes calldata data) external;
+
+  /// @notice Fulfills an EVM-originated L1 call committed by an executed batch.
+  function fulfillEvmL1Call(
     uint64 batchNumber,
     bytes32[] calldata proof,
     uint256 isLeft,

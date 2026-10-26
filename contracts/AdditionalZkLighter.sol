@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import "./interfaces/IEvents.sol";
 import "./interfaces/IZkLighter.sol";
+import {IL1CoreMessaging} from "./interfaces/IL1CoreMessaging.sol";
 import "./lib/TxTypes.sol";
 import "./Storage.sol";
 import "./ExtendableStorage.sol";
@@ -20,6 +21,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   error AdditionalZkLighter_OnlyCoreMessaging();
   error AdditionalZkLighter_L1CallHashNotReady();
   error AdditionalZkLighter_L1CallHashAlreadyExists();
+  error AdditionalZkLighter_L1CallAlreadyFulfilled();
   error AdditionalZkLighter_L2SenderNotZero();
   error AdditionalZkLighter_CannotExecuteToSelf();
   error AdditionalZkLighter_L1CallFailed();
@@ -239,11 +241,12 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       }
     }
 
-    (bool success2, ) = treasury.call{value: fee}("");
+    address currentTreasury = IL1CoreMessaging(coreMessaging).getSystemAddress(TREASURY_ACCOUNT_INDEX);
+    (bool success2, ) = currentTreasury.call{value: fee}("");
     if (!success2) revert AdditionalZkLighter_FeeTransferFailed();
   }
 
-  /// @notice Executes a Core-originated L1 call whose hash was persisted by batch
+  /// @notice Fulfills a Core-originated L1 call whose hash was persisted by batch
   /// execution (`OnChainPubDataType.L1Call`). This operation is
   /// natively replayable -- if the transaction fails, it can be retried.
   ///
@@ -252,13 +255,14 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param value The value to send with the L1 transaction.
   /// @param msgNonce The nonce of the transaction.
   /// @param data The data to send with the L1 transaction.
-  function executeCoreL1Call(address _l2Sender, address to, uint256 value, uint256 msgNonce, bytes calldata data) external {
+  function fulfillCoreL1Call(address _l2Sender, address to, uint256 value, uint256 msgNonce, bytes calldata data) external {
     bytes32 l1CallHash = _computeL1CallHash(_l2Sender, to, value, msgNonce, data);
-    if (l1CallStatus[l1CallHash] != L1CallStatus.Ready) revert AdditionalZkLighter_L1CallHashNotReady();
-    _executeL1Call(l1CallHash, _l2Sender, to, value, data);
+    if (_l1CallStatus[l1CallHash] == L1CallStatus.Fulfilled) revert AdditionalZkLighter_L1CallAlreadyFulfilled();
+    if (_l1CallStatus[l1CallHash] != L1CallStatus.Ready) revert AdditionalZkLighter_L1CallHashNotReady();
+    _fulfillL1Call(l1CallHash, _l2Sender, to, value, data);
   }
 
-  /// @notice Executes an EVM-originated L1 call proven against an executed batch.
+  /// @notice Fulfills an EVM-originated L1 call proven against an executed batch.
   ///
   /// @param batchNumber The executed batch whose root commits to this call.
   /// @param proof Sibling nodes ordered from the leaf towards the root.
@@ -269,7 +273,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param value The value to send with the L1 transaction.
   /// @param msgNonce The nonce of the transaction, tracked by the `EvmToL1Messenger`.
   /// @param data The data to send with the L1 transaction.
-  function executeEvmL1Call(
+  function fulfillEvmL1Call(
     uint64 batchNumber,
     bytes32[] calldata proof,
     uint256 isLeft,
@@ -287,8 +291,9 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     bytes32 l1CallHash = _computeL1CallHash(_l2Sender, to, value, msgNonce, data);
     _verifyMerkleProof(proof, root, l1CallHash, isLeft);
 
-    if (l1CallStatus[l1CallHash] != L1CallStatus.Nonexistent) revert AdditionalZkLighter_L1CallHashAlreadyExists();
-    _executeL1Call(l1CallHash, _l2Sender, to, value, data);
+    if (_l1CallStatus[l1CallHash] == L1CallStatus.Fulfilled) revert AdditionalZkLighter_L1CallAlreadyFulfilled();
+    if (_l1CallStatus[l1CallHash] != L1CallStatus.Nonexistent) revert AdditionalZkLighter_L1CallHashAlreadyExists();
+    _fulfillL1Call(l1CallHash, _l2Sender, to, value, data);
   }
 
   function _verifyMerkleProof(bytes32[] calldata proof, bytes32 root, bytes32 leaf, uint256 isLeft) internal pure {
@@ -322,11 +327,11 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     if (root != currentNode) revert AdditionalZkLighter_InvalidEvmL1CallProof();
   }
 
-  function _executeL1Call(bytes32 l1CallHash, address _l2Sender, address to, uint256 value, bytes calldata data) internal {
+  function _fulfillL1Call(bytes32 l1CallHash, address _l2Sender, address to, uint256 value, bytes calldata data) internal {
     if (l2Sender() != address(0)) revert AdditionalZkLighter_L2SenderNotZero(); // Prevents reentrancy
     if (to == address(this)) revert AdditionalZkLighter_CannotExecuteToSelf();
 
-    l1CallStatus[l1CallHash] = L1CallStatus.Fulfilled;
+    _l1CallStatus[l1CallHash] = L1CallStatus.Fulfilled;
 
     assembly {
       tstore(L2_SENDER_TOFFSET, _l2Sender)
@@ -365,8 +370,8 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       });
   }
 
-  /// @notice Returns the Core or EVM sender during `executeCoreL1Call` or
-  /// `executeEvmL1Call`, or `address(0)` when no L1 call is executing.
+  /// @notice Returns the Core or EVM sender during `fulfillCoreL1Call` or
+  /// `fulfillEvmL1Call`, or `address(0)` when no L1 call is being fulfilled.
   function l2Sender() public view returns (address _l2Sender) {
     /// @solidity memory-safe-assembly
     assembly {

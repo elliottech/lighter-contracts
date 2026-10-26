@@ -21,6 +21,7 @@ import {TxTypes} from "../lib/TxTypes.sol";
 /// and EVM token link finalization. Only caller of EvmToCoreMessenger.
 contract EvmToCoreEntrypoint is Config {
   error EvmToCoreEntrypoint_CallerNotAuthorized();
+  error EvmToCoreEntrypoint_CoreReadFailed();
   error EvmToCoreEntrypoint_InvalidAccountIndex();
   error EvmToCoreEntrypoint_InvalidApiKeyIndex();
   error EvmToCoreEntrypoint_InvalidPubKey();
@@ -102,7 +103,7 @@ contract EvmToCoreEntrypoint is Config {
   /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
   function changePubKey(uint48 accountIndex, uint8 apiKeyIndex, bytes calldata pubKey) external nonReentrant returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (apiKeyIndex > MAX_API_KEY_INDEX) revert EvmToCoreEntrypoint_InvalidApiKeyIndex();
     if (pubKey.length != PUB_KEY_BYTES_SIZE) revert EvmToCoreEntrypoint_InvalidPubKey();
 
@@ -139,7 +140,7 @@ contract EvmToCoreEntrypoint is Config {
     bool reduceOnly,
     uint32 triggerPrice
   ) external nonReentrant returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (marketIndex > MAX_PERPS_MARKET_INDEX && (marketIndex < MIN_SPOT_MARKET_INDEX || marketIndex > MAX_SPOT_MARKET_INDEX)) {
       revert EvmToCoreEntrypoint_InvalidMarketIndex();
     }
@@ -173,7 +174,7 @@ contract EvmToCoreEntrypoint is Config {
 
   /// @param orderIndex Either a client order index or an order index, so it spans both ranges.
   function cancelOrder(uint48 accountIndex, uint64 orderIndex) external nonReentrant returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (orderIndex < MIN_CLIENT_ORDER_INDEX || orderIndex > MAX_ORDER_INDEX) revert EvmToCoreEntrypoint_InvalidOrderIndex();
 
     bytes memory request = TxTypes.writeEvmCancelOrder(accountIndex, orderIndex);
@@ -181,14 +182,14 @@ contract EvmToCoreEntrypoint is Config {
   }
 
   function cancelAllOrders(uint48 accountIndex) external nonReentrant returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
 
     bytes memory request = TxTypes.writeEvmCancelAllOrders(accountIndex);
     reqId = EVM_TO_CORE_MESSENGER.writeToCore(msg.sender, request);
   }
 
   function burnShares(uint48 accountIndex, uint48 publicPoolIndex, uint64 shareAmount) external nonReentrant returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (accountIndex == publicPoolIndex) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (publicPoolIndex > MAX_ACCOUNT_INDEX || publicPoolIndex <= MAX_MASTER_ACCOUNT_INDEX) {
       revert EvmToCoreEntrypoint_InvalidAccountIndex();
@@ -208,7 +209,7 @@ contract EvmToCoreEntrypoint is Config {
     TxTypes.RouteType routeType,
     uint64 baseAmount
   ) external nonReentrant returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (assetIndex < MIN_ASSET_INDEX || assetIndex > MAX_ASSET_INDEX) revert EvmToCoreEntrypoint_InvalidAssetIndex();
     if (l1Recipient == address(0)) revert EvmToCoreEntrypoint_InvalidRecipient();
     if (baseAmount == 0 || baseAmount > MAX_WITHDRAWAL_BASE_AMOUNT) revert EvmToCoreEntrypoint_InvalidAmount();
@@ -249,7 +250,7 @@ contract EvmToCoreEntrypoint is Config {
     TxTypes.RouteType routeType,
     uint64 baseAmount
   ) external onlyEvmInteropManager returns (uint64 reqId) {
-    if (accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
+    if (accountIndex <= MAX_L1_ACCOUNT_INDEX || accountIndex > MAX_ACCOUNT_INDEX) revert EvmToCoreEntrypoint_InvalidAccountIndex();
     if (assetIndex < MIN_ASSET_INDEX || assetIndex > MAX_ASSET_INDEX) revert EvmToCoreEntrypoint_InvalidAssetIndex();
 
     bytes memory request = TxTypes.writeEvmSendToEvm(accountIndex, assetIndex, evmRecipient, routeType, baseAmount);
@@ -260,12 +261,12 @@ contract EvmToCoreEntrypoint is Config {
   /// EvmInteropManager during onLinkEvmNativeToken.
   /// @dev No state-growth surcharge is charged here: this path is initiated on
   /// L1, so spam is already bounded by L1 gas costs.
-  function finalizeEvmLink(uint32 assetIndex, address evmToken) external onlyEvmInteropManager {
+  function finalizeEvmLink(uint32 assetIndex, address evmToken) external onlyEvmInteropManager returns (uint64 reqId) {
     if (assetIndex < MIN_ASSET_INDEX || assetIndex > MAX_ASSET_INDEX) revert EvmToCoreEntrypoint_InvalidAssetIndex();
     if (evmToken == address(0)) revert EvmToCoreEntrypoint_InvalidEvmToken();
 
     bytes memory request = TxTypes.writeEvmFinalizeEvmLink(assetIndex, evmToken);
-    EVM_TO_CORE_MESSENGER.writeToCore(EVM_INTEROP_MANAGER_ADDR, request);
+    reqId = EVM_TO_CORE_MESSENGER.writeToCore(EVM_INTEROP_MANAGER_ADDR, request);
   }
 
   /// @dev Spin until at least `amount` gas has been consumed. Used to charge
@@ -276,8 +277,11 @@ contract EvmToCoreEntrypoint is Config {
   }
 
   function _requireExistingL1AccountOnCore(address l1Address) private view {
-    // This read reverts for a missing account
     (bool success, bytes memory data) = address(READ_CORE).staticcall(abi.encodePacked(bytes2(0x0008), l1Address));
-    if (!success || data.length < 32) revert EvmToCoreEntrypoint_L1AccountDoesNotExist();
+    // A missing account is a successful reply with `found == false`; a failed read is an error.
+    if (!success) revert EvmToCoreEntrypoint_CoreReadFailed();
+
+    (bool found, ) = abi.decode(data, (bool, bytes));
+    if (!found) revert EvmToCoreEntrypoint_L1AccountDoesNotExist();
   }
 }

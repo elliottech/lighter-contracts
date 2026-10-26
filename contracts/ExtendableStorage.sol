@@ -49,8 +49,8 @@ contract ExtendableStorage {
     Fulfilled
   }
 
-  /// @dev Tracks status of L1 call hashes for executeCoreL1Call / executeEvmL1Call
-  mapping(bytes32 => L1CallStatus) internal l1CallStatus;
+  /// @dev Tracks status of L1 call hashes for fulfillCoreL1Call / fulfillEvmL1Call
+  mapping(bytes32 => L1CallStatus) internal _l1CallStatus;
 
   /// @dev Monotonically decreasing nonce for desert mode L1 call hashes.
   uint256 desertModeNonce;

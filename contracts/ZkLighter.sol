@@ -122,16 +122,27 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
       revert ZkLighter_DesertError();
     }
 
-    // System accounts will pass their real l1 address, which will then be set to 0 here.
     uint48 masterAccountIndex = IL1CoreMessaging(coreMessaging).getAccountIndexFromAddress(_l1Address);
     if (masterAccountIndex == NIL_ACCOUNT_INDEX) {
       revert ZkLighter_DesertError();
-    } else if (masterAccountIndex == TREASURY_ACCOUNT_INDEX || masterAccountIndex == INSURANCE_FUND_OPERATOR_ACCOUNT_INDEX) {
-      _l1Address = address(0);
+    }
+
+    // System accounts pass their current role address, which receives the exit. Their Core
+    // leaves commit the zero owner address, so the exit commitment uses address(0) for them.
+    address leafL1Address = _l1Address;
+    if (masterAccountIndex == TREASURY_ACCOUNT_INDEX || masterAccountIndex == INSURANCE_FUND_OPERATOR_ACCOUNT_INDEX) {
+      leafL1Address = address(0);
     }
 
     uint256[] memory inputs = new uint256[](1);
-    bytes32 commitment = createExitCommitment(uint256(coreStateRoot), _accountIndex, masterAccountIndex, _l1Address, _assetIndex, _totalBaseAmount);
+    bytes32 commitment = createExitCommitment(
+      uint256(coreStateRoot),
+      _accountIndex,
+      masterAccountIndex,
+      leafL1Address,
+      _assetIndex,
+      _totalBaseAmount
+    );
     inputs[0] = uint256(commitment) % BN254_MODULUS;
     bool success = desertVerifier.Verify(proof, inputs);
     if (!success) {
@@ -144,9 +155,10 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
-  /// @dev Refunds use the destination encoded in the deposit pubdata. If it is
-  /// address(0), the system account address is resolved from the account index
-  /// via L1CoreMessaging.getSystemAddress at cancellation time.
+  /// @dev Each deposit is refunded to the toAddress in its pubdata, including deposits to
+  /// system accounts (treasury, insurance fund). A deposit whose pubdata carries no toAddress
+  /// can only target a system account; its refund goes to that account's current role address,
+  /// resolved via L1CoreMessaging.getSystemAddress, which reverts for any other account.
   function cancelOutstandingDepositsForDesertMode(uint64 _n, bytes[] calldata _priorityPubData) external nonReentrant {
     if (!desertMode) {
       revert ZkLighter_DesertError();
@@ -749,8 +761,8 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   function _persistL1CallHash(bytes32 _l1CallHash) internal {
-    if (l1CallStatus[_l1CallHash] == L1CallStatus.Nonexistent) {
-      l1CallStatus[_l1CallHash] = L1CallStatus.Ready;
+    if (_l1CallStatus[_l1CallHash] == L1CallStatus.Nonexistent) {
+      _l1CallStatus[_l1CallHash] = L1CallStatus.Ready;
     }
   }
 
@@ -950,6 +962,11 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     return _evmL1CallsRoots[batchNumber];
   }
 
+  /// @inheritdoc IZkLighter
+  function l1CallStatus(bytes32 l1CallHash) external view returns (L1CallStatus) {
+    return _l1CallStatus[l1CallHash];
+  }
+
   /// @notice Delegates the call to the additional part of the main contract.
   /// @notice Should be only use to delegate the external calls as it passes the calldata
   /// @notice All functions delegated to additional contract should NOT be nonReentrant
@@ -1012,7 +1029,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @dev Implemented directly (not delegated) so the function can be `view`.
-  /// Reads the transient storage slot set by `executeCoreL1Call` / `executeEvmL1Call`
+  /// Reads the transient storage slot set by `fulfillCoreL1Call` / `fulfillEvmL1Call`
   /// in AdditionalZkLighter.
   function l2Sender() public view returns (address _l2Sender) {
     /// @solidity memory-safe-assembly
@@ -1021,11 +1038,11 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     }
   }
 
-  function executeCoreL1Call(address l2Sender_, address target, uint256 value, uint256 msgNonce, bytes calldata data) external {
+  function fulfillCoreL1Call(address l2Sender_, address target, uint256 value, uint256 msgNonce, bytes calldata data) external {
     delegateAdditional();
   }
 
-  function executeEvmL1Call(
+  function fulfillEvmL1Call(
     uint64 batchNumber,
     bytes32[] calldata proof,
     uint256 isLeft,

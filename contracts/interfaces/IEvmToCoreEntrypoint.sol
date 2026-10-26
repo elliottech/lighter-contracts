@@ -21,7 +21,7 @@ interface IEvmToCoreEntrypoint {
     TxTypes.RouteType routeType,
     uint64 baseAmount
   ) external returns (uint64 reqId);
-  function finalizeEvmLink(uint32 assetIndex, address evmToken) external;
+  function finalizeEvmLink(uint32 assetIndex, address evmToken) external returns (uint64 reqId);
 
   // User-facing
   function changePubKey(uint48 accountIndex, uint8 apiKeyIndex, bytes calldata pubKey) external returns (uint64 reqId);

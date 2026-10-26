@@ -31,6 +31,7 @@ contract EvmInteropManager is Initializable, Config {
   error EvmInteropManager_EvmTokenNotLinked();
   error EvmInteropManager_EthNotSupported();
   error EvmInteropManager_ReentrantCall();
+  error EvmInteropManager_CoreReadFailed();
 
   event TokenInfoSent(address indexed evmToken);
   event EvmNativeTokenLinked(uint32 indexed assetIndex, address indexed evmToken);
@@ -441,16 +442,19 @@ contract EvmInteropManager is Initializable, Config {
   /*                           VIEW                             */
   /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-  /// @notice Whether the asset is registered on Core (priority request was processed).
+  /// @notice Whether the asset is registered on Core (priority request was processed),
+  /// and the EVM token Core has linked to it (`address(0)` until the link is finalized on Core).
+  /// @dev Reverts if the READ_CORE call fails: a failed read is an error, not a missing asset.
   function isActiveOnCore(uint32 assetIndex) public view returns (bool, address) {
     if (assetIndex == NATIVE_ASSET_INDEX) return (true, ETH_ADDRESS);
 
     (bool success, bytes memory data) = address(READ_CORE).staticcall(abi.encodePacked(bytes2(0x0004), assetIndex));
+    if (!success) revert EvmInteropManager_CoreReadFailed();
 
-    if (!success) return (false, address(0));
+    (bool found, bytes memory reply) = abi.decode(data, (bool, bytes));
+    if (!found) return (false, address(0));
 
-    address evmToken = abi.decode(data, (address));
-
+    address evmToken = abi.decode(reply, (address));
     return (true, evmToken);
   }
 
