@@ -53,18 +53,33 @@ contract ProxyTests is Test {
     verifierProxy = new Proxy(address(verifierImplementation), "");
     verifier = ZkLighterVerifierTest(address(verifierProxy));
 
-    zklighterProxy = new Proxy(
-      address(zklighterImplementation),
-      abi.encode(
-        address(governance),
-        address(verifier),
-        address(additionalZkLighter),
-        address(desertVerifier),
-        GENESIS_STATE_ROOT,
-        GENESIS_VALIDIUM_ROOT
-      )
-    );
+    // P1 upgrades an already initialized P0 proxy and has no initializer of its own, so seed the proxy storage directly.
+    zklighterProxy = new Proxy(address(zklighterImplementation), "");
     zklighter = ZkLighterTest(payable(address(zklighterProxy)));
+    zklighter.setGovernanceAddress(address(governance));
+    zklighter.setVerifierAddress(address(verifier));
+    zklighter.setAdditionalZkLighterAddress(address(additionalZkLighter));
+    zklighter.setDesertVerifierAddress(address(desertVerifier));
+    zklighter.registerDefaultAssetConfigs();
+    zklighter.setLastAccountIndex(2);
+    zklighter.setStoredBatchHash(0, keccak256(abi.encode(_genesisBatch())));
+  }
+
+  function _genesisBatch() internal pure returns (Storage.StoredBatchInfo memory) {
+    return
+      Storage.StoredBatchInfo({
+        batchNumber: 0,
+        endBlockNumber: 0,
+        batchSize: 0,
+        startTimestamp: 0,
+        endTimestamp: 0,
+        priorityRequestCount: 0,
+        prefixPriorityRequestHash: bytes32(0),
+        onChainOperationsHash: bytes32(0),
+        stateRoot: GENESIS_STATE_ROOT,
+        validiumRoot: GENESIS_VALIDIUM_ROOT,
+        commitment: bytes32(0)
+      });
   }
 
   function test_proxyStoresTargets() public view {
@@ -133,21 +148,7 @@ contract ProxyTests is Test {
   }
 
   function test_delegateRevertBatchesCall() public {
-    Storage.StoredBatchInfo memory genesisBatch = Storage.StoredBatchInfo({
-      batchNumber: 0,
-      endBlockNumber: 0,
-      batchSize: 0,
-      startTimestamp: 0,
-      endTimestamp: 0,
-      priorityRequestCount: 0,
-      prefixPriorityRequestHash: bytes32(0),
-      onChainOperationsHash: bytes32(0),
-      stateRoot: GENESIS_STATE_ROOT,
-      validiumRoot: GENESIS_VALIDIUM_ROOT,
-      commitment: bytes32(0)
-    });
-
-    zklighter.revertBatches(new Storage.StoredBatchInfo[](0), genesisBatch);
+    zklighter.revertBatches(new Storage.StoredBatchInfo[](0), _genesisBatch());
   }
 
   function test_proxyInterceptsGovernanceUpgrade() public {

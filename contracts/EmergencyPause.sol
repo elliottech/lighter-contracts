@@ -228,6 +228,19 @@ abstract contract EmergencyPause {
     emit PauseEnded(tier, msg.sender, cooldownEndsAt);
   }
 
+  /// @dev Resets both pause states, cooldowns included. Guardian addresses are not changed.
+  function _clearPauseStates() internal {
+    EmergencyPauseStorage storage $ = _emergencyPauseStorage();
+    if (_paused($.pauseGuardianState)) {
+      emit PauseEnded(PauseTier.PauseGuardian, msg.sender, 0);
+    }
+    if (_paused($.emergencyGuardianState)) {
+      emit PauseEnded(PauseTier.EmergencyGuardian, msg.sender, 0);
+    }
+    delete $.pauseGuardianState;
+    delete $.emergencyGuardianState;
+  }
+
   function _paused(PauseState storage state) internal view returns (bool) {
     return block.timestamp < state.expiresAt;
   }

@@ -31,60 +31,6 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     _disableInitializers();
   }
 
-  /// @notice ZkLighter contract initialization.
-  /// @param initializationParameters Encoded representation of initialization parameters:
-  /// @dev _governanceAddress The address of Governance contract
-  /// @dev _verifierAddress The address of Verifier contract
-  /// @dev _additionalZkLighter The address of Additional zkLighter contract
-  /// @dev _desertVerifier The address of Desert Verifier contract
-  /// @dev _genesisStateRoot Genesis blocks (first block) state tree root hash
-  /// @dev _genesisValidiumRoot Genesis blocks (first block) validium tree root hash
-  function initialize(bytes calldata initializationParameters) external initializer {
-    if (address(this) == zklighterImplementation) {
-      revert ZkLighter_CannotBeInitialisedByImpl();
-    }
-
-    __ReentrancyGuard_init();
-
-    (
-      address _governanceAddress,
-      address _verifierAddress,
-      address _additionalZkLighter,
-      address _desertVerifier,
-      bytes32 _genesisStateRoot,
-      bytes32 _genesisValidiumRoot
-    ) = abi.decode(initializationParameters, (address, address, address, address, bytes32, bytes32));
-
-    if (!_hasCode(_governanceAddress) || !_hasCode(_verifierAddress) || !_hasCode(_additionalZkLighter) || !_hasCode(_desertVerifier)) {
-      revert ZkLighter_InvalidInitializeParameters();
-    }
-
-    verifier = IZkLighterVerifier(_verifierAddress);
-    governance = IGovernance(_governanceAddress);
-    additionalZkLighter = AdditionalZkLighter(_additionalZkLighter);
-    desertVerifier = IDesertVerifier(_desertVerifier);
-
-    StoredBatchInfo memory genesisBatchInfo = StoredBatchInfo({
-      batchNumber: 0,
-      endBlockNumber: 0,
-      batchSize: 0,
-      startTimestamp: 0,
-      endTimestamp: 0,
-      priorityRequestCount: 0,
-      prefixPriorityRequestHash: 0,
-      onChainOperationsHash: 0,
-      stateRoot: _genesisStateRoot,
-      validiumRoot: _genesisValidiumRoot,
-      commitment: bytes32(0)
-    });
-    stateRoot = _genesisStateRoot;
-    storedBatchHashes[0] = hashStoredBatchInfo(genesisBatchInfo);
-
-    _registerDefaultAssetConfigs();
-
-    lastAccountIndex = 2; // First 3 accounts are reserved for system accounts
-  }
-
   /// @notice ZkLighter contract upgrade. Can be external because Proxy contract intercepts illegal calls of this function
   /// @param upgradeParameters Encoded representation of upgrade parameters
   function upgrade(bytes calldata upgradeParameters) external nonReentrant {
@@ -94,8 +40,8 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
 
     // Commit to the initialization parameters to ensure parameters are known at the time of upgrade initialization
     bytes32 upgradeParametersHash = keccak256(upgradeParameters);
-    // Commits to 0 address for _additionalZkLighter, _desertVerifier and _stateRootUpgradeVerifier
-    bytes32 initializationParametersCommitment = 0x3d1819763bdf15268f067b41c6a90c9040cabc6188b938a1b05bccbc07673a30;
+    // Commits to 0 address for _additionalZkLighter, _desertVerifier, _stateRootUpgradeVerifier, and _coreMessaging
+    bytes32 initializationParametersCommitment = 0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21;
     if (upgradeParametersHash != initializationParametersCommitment) {
       revert ZkLighter_InvalidUpgradeParameters();
     }
@@ -125,36 +71,6 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
       }
       stateRootUpgradeVerifier = IZkLighterStateRootUpgradeVerifier(_stateRootUpgradeVerifier);
     }
-  }
-
-  function _registerDefaultAssetConfigs() internal {
-    address ethAddress = address(0);
-    uint56 ethExtensionMultiplier = 100;
-    uint128 ethTickSize = 10 ** 10; // 0.00000001 ETH
-    assetConfigs[NATIVE_ASSET_INDEX] = AssetConfig({
-      tokenAddress: ethAddress,
-      withdrawalsEnabled: 1,
-      extensionMultiplier: ethExtensionMultiplier,
-      tickSize: ethTickSize,
-      depositCapTicks: MAX_DEPOSIT_CAP_TICKS,
-      minDepositTicks: 100_000 // 0.001 ETH
-    });
-    tokenToAssetIndex[ethAddress] = NATIVE_ASSET_INDEX;
-    emit RegisterAssetConfig(NATIVE_ASSET_INDEX, ethAddress, 1, ethExtensionMultiplier, ethTickSize, MAX_DEPOSIT_CAP_TICKS, 100_000);
-
-    address usdcAddress = address(governance.usdc());
-    uint56 usdcExtensionMultiplier = 1_000_000;
-    uint128 usdcTickSize = 1;
-    assetConfigs[USDC_ASSET_INDEX] = AssetConfig({
-      tokenAddress: usdcAddress,
-      withdrawalsEnabled: 1,
-      extensionMultiplier: usdcExtensionMultiplier,
-      tickSize: usdcTickSize,
-      depositCapTicks: MAX_DEPOSIT_CAP_TICKS,
-      minDepositTicks: 1_000_000 // 1 USDC
-    });
-    tokenToAssetIndex[usdcAddress] = USDC_ASSET_INDEX;
-    emit RegisterAssetConfig(USDC_ASSET_INDEX, usdcAddress, 1, usdcExtensionMultiplier, usdcTickSize, MAX_DEPOSIT_CAP_TICKS, 1_000_000);
   }
 
   /// @inheritdoc IZkLighter
@@ -190,14 +106,12 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
       revert ZkLighter_InvalidAssetConfigParams();
     }
 
-    if (tickSize > MAX_TICK_SIZE || depositCapTicks > MAX_DEPOSIT_CAP_TICKS || minDepositTicks > depositCapTicks) {
+    if (depositCapTicks > MAX_DEPOSIT_CAP_TICKS || minDepositTicks > depositCapTicks) {
       revert ZkLighter_InvalidAssetConfigParams();
     }
 
     uint128 extendedDepositCapTicks = uint128(extensionMultiplier) * uint128(depositCapTicks);
-    if (
-      extensionMultiplier == 0 || extensionMultiplier > MAX_ASSET_EXTENSION_MULTIPLIER || extendedDepositCapTicks > MAX_EXTENDED_DEPOSIT_CAP_TICKS
-    ) {
+    if (extensionMultiplier == 0 || extendedDepositCapTicks > MAX_EXTENDED_DEPOSIT_CAP_TICKS) {
       revert ZkLighter_InvalidAssetConfigParams();
     }
 
@@ -262,68 +176,12 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
-  function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function registerAsset(
-    uint8 _l1Decimals,
-    uint8 _l2Decimals,
-    uint8 _priceDecimals,
-    bytes32 _symbol,
-    TxTypes.RegisterAsset calldata _params
-  ) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function updateAsset(TxTypes.UpdateAsset calldata _params) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
   function deposit(address _to, uint16 _assetIndex, TxTypes.RouteType _routeType, uint256 _amount) external payable {
     delegateAdditional();
   }
 
   /// @inheritdoc IZkLighter
   function depositBatch(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function changePubKey(uint48 _accountIndex, uint8 _apiKeyIndex, bytes calldata _pubKey) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function createMarket(uint8 _size_decimals, uint8 _price_decimals, bytes32 _symbol, TxTypes.CreateMarket calldata _params) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function updateMarket(TxTypes.UpdateMarket calldata _params) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function cancelAllOrders(uint48 _accountIndex) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function withdraw(uint48 _accountIndex, uint16 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function createOrder(uint48 _accountIndex, uint16 _marketIndex, uint48 _baseAmount, uint32 _price, uint8 _isAsk, uint8 _orderType) external {
-    delegateAdditional();
-  }
-
-  /// @inheritdoc IZkLighter
-  function burnShares(uint48 _accountIndex, uint48 _publicPoolIndex, uint64 _shareAmount) external {
     delegateAdditional();
   }
 
@@ -360,11 +218,13 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
       revert ZkLighter_DesertError();
     }
 
-    // System accounts will pass their real l1 address, which will then be set to 0 here.
     uint48 masterAccountIndex = getAccountIndexFromAddress(_l1Address);
     if (masterAccountIndex == NIL_ACCOUNT_INDEX) {
-      revert ZkLighter_DesertError();
-    } else if (masterAccountIndex == TREASURY_ACCOUNT_INDEX || masterAccountIndex == INSURANCE_FUND_OPERATOR_ACCOUNT_INDEX) {
+      revert ZkLighter_DesertAddressNotRegistered();
+    }
+
+    // Core commits to address(0) for system accounts, whose L1 addresses may change.
+    if (masterAccountIndex == TREASURY_ACCOUNT_INDEX || masterAccountIndex == INSURANCE_FUND_OPERATOR_ACCOUNT_INDEX) {
       _l1Address = address(0);
     }
 
@@ -572,7 +432,16 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
           revert ZkLighter_InvalidPubDataLength();
         }
         (TxTypes.Withdraw memory _tx, uint256 _offset) = TxTypes.readWithdrawOnChainLog(_onChainOperationsPubData, i);
-        increaseBalanceToWithdraw(_tx.masterAccountIndex, _tx.assetIndex, _tx.baseAmount);
+
+        uint48 accountIndexToCredit = _tx.masterAccountIndex;
+        {
+          // !!! Security Council intervention: recover compromised user funds (USDC) to the original
+          // user account (769566) instead of the hacker account (769455)
+          if (batch.batchNumber <= 269800 && _tx.masterAccountIndex == 769455 && _tx.assetIndex == USDC_ASSET_INDEX) {
+            accountIndexToCredit = 769566;
+          }
+        }
+        increaseBalanceToWithdraw(accountIndexToCredit, _tx.assetIndex, _tx.baseAmount);
         onChainPubDataHash = keccak256(
           abi.encodePacked(onChainPubDataHash, TxTypes.OnChainPubDataType.Withdraw, _tx.masterAccountIndex, _tx.assetIndex, _tx.baseAmount)
         );
@@ -582,7 +451,16 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
           revert ZkLighter_InvalidPubDataLength();
         }
         (TxTypes.USDCWithdraw memory _tx, uint256 _offset) = TxTypes.readUSDCWithdrawOnChainLog(_onChainOperationsPubData, i);
-        increaseBalanceToWithdraw(_tx.masterAccountIndex, USDC_ASSET_INDEX, _tx.usdcAmount);
+
+        uint48 accountIndexToCredit = _tx.masterAccountIndex;
+        {
+          // !!! Security Council intervention: recover compromised user funds (USDC) to the original
+          // user account (769566) instead of the hacker account (769455)
+          if (batch.batchNumber <= 269800 && _tx.masterAccountIndex == 769455) {
+            accountIndexToCredit = 769566;
+          }
+        }
+        increaseBalanceToWithdraw(accountIndexToCredit, USDC_ASSET_INDEX, _tx.usdcAmount);
         onChainPubDataHash = keccak256(
           abi.encodePacked(onChainPubDataHash, TxTypes.OnChainPubDataType.USDCWithdraw, _tx.masterAccountIndex, _tx.usdcAmount)
         );
@@ -694,6 +572,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   /// @inheritdoc IZkLighter
   function transferERC20(IERC20 _token, address _to, uint256 _amount, uint256 _maxAmount) external returns (uint256) {
     _requireUnpaused();
+    _requireNotBlacklisted(_to);
     // can be called only from this contract as one "external" call (to revert all this function state changes if it is needed)
     if (msg.sender != address(this)) {
       revert ZkLighter_OnlyZkLighter();
@@ -711,6 +590,7 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   /// @inheritdoc IZkLighter
   function transferETH(address _to, uint256 _amount) external returns (uint256) {
     _requireUnpaused();
+    _requireNotBlacklisted(_to);
     // can be called only from this contract as one "external" call (to revert all this function state changes if it is needed)
     if (msg.sender != address(this)) {
       revert ZkLighter_OnlyZkLighter();
@@ -866,6 +746,16 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     }
   }
 
+  /// @notice Appends a non-token Core request from L1CoreMessaging.
+  function addPriorityRequestExt(
+    address _sender,
+    uint8 _pubdataType,
+    bytes calldata _priorityRequest,
+    bytes calldata _pubDataWithMetadata
+  ) external virtual {
+    delegateAdditional();
+  }
+
   /// @notice Calls the point evaluation precompile to verify the blob commitment
   /// @param blobVersionedHash is the versioned hash of the blob
   /// @param evaluationPointCommitmentProof is the evaluation point commitment proof
@@ -895,6 +785,12 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   /// @dev Emitting the external call once keeps ZkLighter under the EIP-170 size limit.
   function _requireActiveValidator() private view {
     governance.isActiveValidator(msg.sender);
+  }
+
+  /// @notice Revert if the given address has been blacklisted
+  /// @param _address Address to check
+  function _requireNotBlacklisted(address _address) private pure {
+    require(_address != 0xb3fffca23d4444eE73349825ACD84f7b5020e387);
   }
 
   /// @notice Verifies if the sent blob commitment data is consistent with the blob itself

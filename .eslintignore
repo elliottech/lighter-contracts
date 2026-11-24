@@ -1,0 +1,6 @@
+coverage
+cache
+**/node_modules/**
+**/dist/**
+**/artifacts/**
+sdk/

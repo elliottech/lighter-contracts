@@ -84,6 +84,10 @@ contract ZkLighterTest is ZkLighter {
     verifier = IZkLighterVerifier(newVerifier);
   }
 
+  function setDesertVerifierAddress(address newDesertVerifier) external {
+    desertVerifier = IDesertVerifier(newDesertVerifier);
+  }
+
   function setStoredBatchHash(uint64 batchNumber, bytes32 batchHash) external {
     storedBatchHashes[batchNumber] = batchHash;
   }
@@ -104,16 +108,52 @@ contract ZkLighterTest is ZkLighter {
     pendingAssetBalances[assetIndex][accountIndex].balanceToWithdraw = balanceToWithdraw;
   }
 
-  function setDesertVerifierAddress(address newDesertVerifier) external {
-    desertVerifier = IDesertVerifier(newDesertVerifier);
-  }
-
   function setStateRoot(bytes32 newStateRoot) external {
     stateRoot = newStateRoot;
   }
 
+  function setStateRootUpgradeVerifierAddress(address newVerifier) external {
+    stateRootUpgradeVerifier = IZkLighterStateRootUpgradeVerifier(newVerifier);
+  }
+
+  function setDeprecatedPendingBalance(uint48 masterAccountIndex, uint128 balanceToWithdraw) external {
+    DEPRECATED_pendingBalance[masterAccountIndex] = DEPRECATED_PendingBalance({balanceToWithdraw: balanceToWithdraw, gasReserveValue: 0});
+  }
+
+  function setCoreMessaging(address newCoreMessaging) external {
+    coreMessaging = newCoreMessaging;
+  }
+
+  function setLastAccountIndex(uint48 newLastAccountIndex) external {
+    lastAccountIndex = newLastAccountIndex;
+  }
+
   function registerDefaultAssetConfigs() external {
-    _registerDefaultAssetConfigs();
+    address ethAddress = address(0);
+    uint56 ethExtensionMultiplier = 100;
+    uint128 ethTickSize = 10 ** 10;
+    assetConfigs[NATIVE_ASSET_INDEX] = AssetConfig({
+      tokenAddress: ethAddress,
+      withdrawalsEnabled: 1,
+      extensionMultiplier: ethExtensionMultiplier,
+      tickSize: ethTickSize,
+      depositCapTicks: MAX_DEPOSIT_CAP_TICKS,
+      minDepositTicks: 100_000
+    });
+    tokenToAssetIndex[ethAddress] = NATIVE_ASSET_INDEX;
+
+    address usdcAddress = address(governance.usdc());
+    uint56 usdcExtensionMultiplier = 1_000_000;
+    uint128 usdcTickSize = 1;
+    assetConfigs[USDC_ASSET_INDEX] = AssetConfig({
+      tokenAddress: usdcAddress,
+      withdrawalsEnabled: 1,
+      extensionMultiplier: usdcExtensionMultiplier,
+      tickSize: usdcTickSize,
+      depositCapTicks: MAX_DEPOSIT_CAP_TICKS,
+      minDepositTicks: 1_000_000
+    });
+    tokenToAssetIndex[usdcAddress] = USDC_ASSET_INDEX;
   }
 
   function setAddressToAccountIndex(address accountAddress, uint48 accountIndex) external {
@@ -121,17 +161,50 @@ contract ZkLighterTest is ZkLighter {
   }
 
   function depositTest(address _to, uint16 _assetIndex, TxTypes.RouteType _routeType, uint256 _amount) external payable {
-    (bool success, ) = address(additionalZkLighter).delegatecall(
+    (bool success, bytes memory result) = address(additionalZkLighter).delegatecall(
       abi.encodeWithSignature("deposit(address,uint16,uint8,uint256)", _to, _assetIndex, uint8(_routeType), _amount)
     );
-    require(success, "Delegatecall to deposit failed");
+    if (!success) {
+      assembly {
+        revert(add(result, 0x20), mload(result))
+      }
+    }
   }
 
-  function withdrawTest(uint48 _accountIndex, uint16 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external {
-    (bool success, ) = address(additionalZkLighter).delegatecall(
-      abi.encodeWithSignature("withdraw(uint48,uint16,uint8,uint64)", _accountIndex, _assetIndex, uint8(_routeType), _baseAmount)
+  function updateStateRootTest(StoredBatchInfo calldata _lastStoredBatch, bytes32 _stateRoot, bytes32 _validiumRoot, bytes calldata proof) external {
+    (bool success, bytes memory result) = address(additionalZkLighter).delegatecall(
+      abi.encodeCall(IZkLighter.updateStateRoot, (_lastStoredBatch, _stateRoot, _validiumRoot, proof))
     );
-    require(success, "Delegatecall to withdraw failed");
+    if (!success) {
+      assembly {
+        revert(add(result, 0x20), mload(result))
+      }
+    }
+  }
+
+  function depositBatchTest(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external {
+    (bool success, bytes memory result) = address(additionalZkLighter).delegatecall(
+      abi.encodeWithSignature("depositBatch(uint64[],address[],uint48[])", _amount, _to, _accountIndex)
+    );
+    if (!success) {
+      assembly {
+        revert(add(result, 0x20), mload(result))
+      }
+    }
+  }
+
+  function addPriorityRequestExt(
+    address _sender,
+    uint8 _pubdataType,
+    bytes calldata _priorityRequest,
+    bytes calldata _pubDataWithMetadata
+  ) external override {
+    (bool success, bytes memory result) = address(additionalZkLighter).delegatecall(msg.data);
+    if (!success) {
+      assembly {
+        revert(add(result, 0x20), mload(result))
+      }
+    }
   }
 
   function getAssetConfig(uint16 assetIndex) external view returns (AssetConfig memory) {

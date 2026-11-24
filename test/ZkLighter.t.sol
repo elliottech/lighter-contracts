@@ -8,7 +8,7 @@ import {console} from "forge-std/console.sol";
 import {ZkLighterTest} from "../contracts/test/ZkLighterTest.sol";
 import {ZkLighter} from "../contracts/ZkLighter.sol";
 import {AdditionalZkLighter} from "../contracts/AdditionalZkLighter.sol";
-import {IZkLighter} from "../contracts/interfaces/IZkLighter.sol";
+import {IZkLighterPublic} from "../contracts/interfaces/IZkLighter.sol";
 import {Storage} from "../contracts/Storage.sol";
 import {OwnableERC20} from "../contracts/test/OwnableERC20.sol";
 import {GovernanceTest} from "../contracts/test/GovernanceTest.sol";
@@ -16,17 +16,22 @@ import {EmergencyPause} from "../contracts/EmergencyPause.sol";
 import {IGovernance} from "../contracts/interfaces/IGovernance.sol";
 import {IEvents} from "../contracts/interfaces/IEvents.sol";
 import {ZkLighterVerifierTest} from "../contracts/test/ZkLighterVerifierTest.sol";
-import {DesertVerifier} from "../contracts/DesertVerifier.sol";
 import {DesertVerifierTest} from "../contracts/test/DesertVerifierTest.sol";
 import {TxTypes} from "../contracts/lib/TxTypes.sol";
+import {L1CoreMessaging} from "../contracts/messaging/L1CoreMessaging.sol";
+import {IZkLighter} from "../contracts/interfaces/IZkLighter.sol";
+import {Proxy} from "../contracts/proxy/Proxy.sol";
 
 /// Commit, Verify and Execute tests for ZkLighter contract
 contract ZkLighterTests is Test {
+  uint256 private constant BN254_MODULUS = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
+
   OwnableERC20 usdc;
   OwnableERC20 lit;
   ZkLighterTest zklighter;
   GovernanceTest governance;
   AdditionalZkLighter additionalZkLighter;
+  L1CoreMessaging coreMessaging;
   address testAddress;
   uint48 testAccountIndex;
 
@@ -98,6 +103,10 @@ contract ZkLighterTests is Test {
     zklighter.registerDefaultAssetConfigs();
 
     zklighter.registerAssetConfig(2, address(lit), 0, 10 ** 6, 10 ** 12, (2 ** 50) - 1, 100);
+
+    L1CoreMessaging coreMessagingImplementation = new L1CoreMessaging();
+    coreMessaging = L1CoreMessaging(address(new Proxy(address(coreMessagingImplementation), abi.encode(address(zklighter), address(governance)))));
+    zklighter.setCoreMessaging(address(coreMessaging));
   }
 
   // USDC deposit test
@@ -142,17 +151,17 @@ contract ZkLighterTests is Test {
 
     vm.prank(testAddress);
     vm.expectRevert();
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
 
     vm.prank(testAddress);
     vm.expectEmit(true, false, false, false);
     emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
 
     vm.prank(testAddress);
     vm.expectEmit(false, false, false, false);
     emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
   }
 
   // Eth deposit test
@@ -200,17 +209,17 @@ contract ZkLighterTests is Test {
 
     vm.prank(testAddress);
     vm.expectRevert();
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
 
     vm.prank(testAddress);
     vm.expectEmit(false, false, false, false);
     emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(depositAmount));
 
     vm.prank(testAddress);
     vm.expectEmit(false, false, false, false);
     emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(depositAmount));
   }
 
   // Commit batch test
@@ -263,11 +272,11 @@ contract ZkLighterTests is Test {
     // try to withdraw it should revert
     vm.prank(testAddress);
     vm.expectRevert();
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(baseDepositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(baseDepositAmount));
 
     vm.prank(testAddress);
     vm.expectRevert();
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, 0);
 
     // enable withdrawals
     zklighter.updateAssetConfig(validAssetIndex, 1, (2 ** 50) - 1, 100);
@@ -276,12 +285,12 @@ contract ZkLighterTests is Test {
     vm.prank(testAddress);
     vm.expectEmit(false, false, false, false);
     emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(baseDepositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Perps, uint64(baseDepositAmount));
 
     vm.prank(testAddress);
     vm.expectEmit(false, false, false, false);
     emit IEvents.NewPriorityRequest(testAddress, 0, 0, new bytes(0), 0);
-    zklighter.withdrawTest(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(baseDepositAmount));
+    coreMessaging.withdraw(testAccountIndex, validAssetIndex, TxTypes.RouteType.Spot, uint64(baseDepositAmount));
   }
 
   function test_check_default_asset_configs() public {
@@ -559,14 +568,58 @@ contract ZkLighterTests is Test {
     zklighter.performDesert(281474976710651, address(0), 2, 40000000000000, hex"AABB");
   }
 
-  function test_performDesert_fail_nil_account() public {
+  function test_performDesert_resolvesL1AddressAndBindsItIntoProof() public {
+    uint48 accountIndex = 4321;
+    uint16 assetIndex = 3;
+    uint128 totalBaseAmount = 5_000_000;
+
     DesertVerifierTest desertVerifier = new DesertVerifierTest();
     zklighter.setDesertVerifierAddress(address(desertVerifier));
     zklighter.setDesertMode(true);
 
-    // address(0x999) has no mapping and is not treasury/insurance fund -> NIL_ACCOUNT_INDEX
+    bytes32 commitment = keccak256(
+      abi.encodePacked(uint256(zklighter.stateRoot()), accountIndex, testAccountIndex, testAddress, assetIndex, totalBaseAmount)
+    );
+    desertVerifier.setExpectedPublicInput(uint256(commitment) % BN254_MODULUS);
+
+    (uint128 balanceBefore, ) = zklighter.getPendingBalances(assetIndex, testAddress);
+    zklighter.performDesert(accountIndex, testAddress, assetIndex, totalBaseAmount, hex"AAAA");
+    (uint128 balanceAfter, ) = zklighter.getPendingBalances(assetIndex, testAddress);
+
+    assertEq(balanceAfter - balanceBefore, totalBaseAmount);
+
     vm.expectRevert(IZkLighter.ZkLighter_DesertError.selector);
-    zklighter.performDesert(281474976710651, address(0x999), 2, 40000000000000, hex"AABB");
+    zklighter.performDesert(accountIndex, testAddress, assetIndex, totalBaseAmount, hex"AAAA");
+  }
+
+  function test_performDesert_revertsForUnregisteredL1Address() public {
+    zklighter.setDesertMode(true);
+
+    vm.expectRevert(IZkLighter.ZkLighter_DesertAddressNotRegistered.selector);
+    zklighter.performDesert(4321, address(0x9999), 3, 5_000_000, hex"AAAA");
+  }
+
+  function test_performDesert_canonicalizesSystemAccountAddress() public {
+    uint48 accountIndex = 4321;
+    uint16 assetIndex = 3;
+    uint128 totalBaseAmount = 5_000_000;
+    address treasuryAddress = address(0x5678);
+
+    zklighter.setTreasury(treasuryAddress);
+    DesertVerifierTest desertVerifier = new DesertVerifierTest();
+    zklighter.setDesertVerifierAddress(address(desertVerifier));
+    zklighter.setDesertMode(true);
+
+    bytes32 commitment = keccak256(
+      abi.encodePacked(uint256(zklighter.stateRoot()), accountIndex, uint48(0), address(0), assetIndex, totalBaseAmount)
+    );
+    desertVerifier.setExpectedPublicInput(uint256(commitment) % BN254_MODULUS);
+
+    (uint128 balanceBefore, ) = zklighter.getPendingBalances(assetIndex, treasuryAddress);
+    zklighter.performDesert(accountIndex, treasuryAddress, assetIndex, totalBaseAmount, hex"AAAA");
+    (uint128 balanceAfter, ) = zklighter.getPendingBalances(assetIndex, treasuryAddress);
+
+    assertEq(balanceAfter - balanceBefore, totalBaseAmount);
   }
 
   function test_verifyBatch_success_priority_and_onchain() public {

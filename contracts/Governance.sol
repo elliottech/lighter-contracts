@@ -68,6 +68,10 @@ contract Governance is IGovernance, Config, Initializable, ReentrancyGuardUpgrad
     if (address(this) == governanceImplementation) {
       revert ZkLighter_Governance_OnlyProxyCanCallUpgrade();
     }
+
+    // !!! Security Council intervention: lift the pauses started during the incident as part of the upgrade.
+    // Guardian addresses are kept
+    _clearPauseStates();
   }
 
   /// @notice Change current governor

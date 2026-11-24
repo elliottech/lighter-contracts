@@ -5,4 +5,7 @@ libs = ['node_modules', 'lib']
 test = 'test'
 cache_path  = 'cache_forge'
 via_ir = true
+optimizer = true
 optimizer_runs = 1000
+solc = '0.8.25'
+evm_version = 'cancun'

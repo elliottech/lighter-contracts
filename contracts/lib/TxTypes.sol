@@ -41,6 +41,7 @@ library TxTypes {
   uint8 constant PriorityPubDataTypeL1UpdateAsset = 70;
   uint8 constant PriorityPubDataTypeL1UnstakeAssets = 71;
   uint8 constant PriorityPubDataTypeL1SetSystemConfig = 72;
+  uint8 constant PriorityPubDataTypeL1ChangeECDSAPubKey = 73;
 
   /// @notice zklighter onchain transaction types
   enum OnChainPubDataType {
@@ -50,7 +51,7 @@ library TxTypes {
   }
 
   uint32 internal constant USDCWithdrawLogSize = 15; // 1 byte for type, 6 bytes for accountIndex, 8 bytes for usdcAmount
-  uint32 internal constant WithdrawLogSize = 17; // 1 byte for type, 2 bytes for assetIndex, 6 bytes for accountIndex, 8 bytes for amount
+  uint32 internal constant WithdrawLogSize = 17; // 1 byte for type, 6 bytes for masterAccountIndex, 2 bytes for assetIndex, 8 bytes for baseAmount
 
   enum OrderType {
     LimitOrder,
@@ -59,17 +60,16 @@ library TxTypes {
 
   uint256 internal constant DEPOSIT_PUB_DATA_SIZE = 38;
 
-  struct Deposit {
-    uint48 accountIndex;
-    address toAddress;
-    uint16 assetIndex;
-    RouteType routeType;
-    uint64 baseAmount;
-  }
-
   /// @notice Serialize deposit pubData
-  function writeDepositPubDataForPriorityQueue(Deposit memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1Deposit), _tx.accountIndex, _tx.toAddress, _tx.assetIndex, _tx.routeType, _tx.baseAmount);
+  /// Layout: type(1) | accountIndex(6) | toAddress(20) | assetIndex(2) | routeType(1) | baseAmount(8) = 38 bytes
+  function writeDepositPubDataForPriorityQueue(
+    uint48 accountIndex,
+    address toAddress,
+    uint16 assetIndex,
+    RouteType routeType,
+    uint64 baseAmount
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1Deposit), accountIndex, toAddress, assetIndex, routeType, baseAmount);
   }
 
   /// @notice Deserialize deposit pubData
@@ -83,24 +83,16 @@ library TxTypes {
     return (accountIndex, assetIndex, baseAmount);
   }
 
-  struct L1Withdraw {
-    uint48 accountIndex;
-    uint48 masterAccountIndex;
-    uint16 assetIndex;
-    RouteType routeType;
-    uint64 baseAmount;
-  }
-
   /// @notice Serialize withdraw pubData
-  function writeWithdrawPubDataForPriorityQueue(L1Withdraw memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(
-      uint8(PriorityPubDataTypeL1Withdraw),
-      _tx.accountIndex,
-      _tx.masterAccountIndex,
-      _tx.assetIndex,
-      _tx.routeType,
-      _tx.baseAmount
-    );
+  /// Layout: type(1) | accountIndex(6) | masterAccountIndex(6) | assetIndex(2) | routeType(1) | baseAmount(8) = 24 bytes
+  function writeWithdrawPubDataForPriorityQueue(
+    uint48 accountIndex,
+    uint48 masterAccountIndex,
+    uint16 assetIndex,
+    RouteType routeType,
+    uint64 baseAmount
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1Withdraw), accountIndex, masterAccountIndex, assetIndex, routeType, baseAmount);
   }
 
   struct Withdraw {
@@ -224,11 +216,17 @@ library TxTypes {
   }
 
   /// @notice Serialize create order book pubData, it does not include metadata
-  function writeCreateMarketPubDataForPriorityQueue(CreateMarket memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1CreateMarket), _tx.marketIndex, _tx.marketType, _tx.marketData);
+  /// Layout: type(1) | marketIndex(2) | marketType(1) | marketData(N) = 4+N bytes
+  function writeCreateMarketPubDataForPriorityQueue(
+    uint16 marketIndex,
+    MarketType marketType,
+    bytes memory marketData
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1CreateMarket), marketIndex, marketType, marketData);
   }
 
   /// @notice Serialize create order book pubData, includes metadata
+  /// Layout: _data(N) | size_decimals(1) | price_decimals(1) | symbol(32) = N+34 bytes
   function writeCreateMarketPubDataForPriorityQueueWithMetadata(
     bytes memory _data,
     uint8 size_decimals,
@@ -296,66 +294,75 @@ library TxTypes {
   }
 
   /// @notice Serialize update order book pubData
-  function writeUpdateMarketPubDataForPriorityQueue(UpdateMarket memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1UpdateMarket), _tx.marketIndex, _tx.marketType, _tx.marketData);
-  }
-
-  struct CreateOrder {
-    uint48 accountIndex;
-    uint48 masterAccountIndex;
-    uint64 publicMarketIndex;
-    uint48 baseAmount;
-    uint32 price;
-    uint8 isAsk;
-    uint8 orderType;
+  /// Layout: type(1) | marketIndex(2) | marketType(1) | marketData(N) = 4+N bytes
+  function writeUpdateMarketPubDataForPriorityQueue(
+    uint16 marketIndex,
+    MarketType marketType,
+    bytes memory marketData
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1UpdateMarket), marketIndex, marketType, marketData);
   }
 
   /// @notice Serialize create order pubData
-  function writeCreateOrderPubDataForPriorityQueue(CreateOrder memory _tx) internal pure returns (bytes memory buf) {
+  /// Layout: type(1) | accountIndex(6) | masterAccountIndex(6) | publicMarketIndex(8) | baseAmount(6) | price(4) | isAsk(1) | orderType(1) = 33 bytes
+  function writeCreateOrderPubDataForPriorityQueue(
+    uint48 accountIndex,
+    uint48 masterAccountIndex,
+    uint64 publicMarketIndex,
+    uint48 baseAmount,
+    uint32 price,
+    uint8 isAsk,
+    uint8 orderType
+  ) internal pure returns (bytes memory buf) {
     buf = abi.encodePacked(
       uint8(PriorityPubDataTypeL1CreateOrder),
-      _tx.accountIndex,
-      _tx.masterAccountIndex,
-      _tx.publicMarketIndex,
-      _tx.baseAmount,
-      _tx.price,
-      _tx.isAsk,
-      _tx.orderType
+      accountIndex,
+      masterAccountIndex,
+      publicMarketIndex,
+      baseAmount,
+      price,
+      isAsk,
+      orderType
     );
   }
 
-  struct BurnShares {
-    uint48 accountIndex;
-    uint48 masterAccountIndex;
-    uint48 publicPoolIndex;
-    uint64 sharesAmount;
-  }
-
   /// @notice Serialize burn shares pubData
-  function writeBurnSharesPubDataForPriorityQueue(BurnShares memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1BurnShares), _tx.accountIndex, _tx.masterAccountIndex, _tx.publicPoolIndex, _tx.sharesAmount);
-  }
-
-  struct CancelAllOrders {
-    uint48 accountIndex;
-    uint48 masterAccountIndex;
+  /// Layout: type(1) | accountIndex(6) | masterAccountIndex(6) | publicPoolIndex(6) | sharesAmount(8) = 27 bytes
+  function writeBurnSharesPubDataForPriorityQueue(
+    uint48 accountIndex,
+    uint48 masterAccountIndex,
+    uint48 publicPoolIndex,
+    uint64 sharesAmount
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1BurnShares), accountIndex, masterAccountIndex, publicPoolIndex, sharesAmount);
   }
 
   /// @notice Serialize cancel all orders pubData
-  function writeCancelAllOrdersPubDataForPriorityQueue(CancelAllOrders memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1CancelAllOrders), _tx.accountIndex, _tx.masterAccountIndex);
-  }
-
-  struct ChangePubKey {
-    uint48 accountIndex;
-    uint48 masterAccountIndex;
-    uint8 apiKeyIndex;
-    bytes pubKey;
+  /// Layout: type(1) | accountIndex(6) | masterAccountIndex(6) = 13 bytes
+  function writeCancelAllOrdersPubDataForPriorityQueue(uint48 accountIndex, uint48 masterAccountIndex) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1CancelAllOrders), accountIndex, masterAccountIndex);
   }
 
   /// @notice Serialize change pub key pubData
-  function writeChangePubKeyPubDataForPriorityQueue(ChangePubKey memory _tx) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1ChangePubKey), _tx.accountIndex, _tx.masterAccountIndex, _tx.apiKeyIndex, _tx.pubKey);
+  /// Layout: type(1) | accountIndex(6) | masterAccountIndex(6) | apiKeyIndex(1) | pubKey(40) = 54 bytes
+  function writeChangePubKeyPubDataForPriorityQueue(
+    uint48 accountIndex,
+    uint48 masterAccountIndex,
+    uint8 apiKeyIndex,
+    bytes memory pubKey
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1ChangePubKey), accountIndex, masterAccountIndex, apiKeyIndex, pubKey);
+  }
+
+  /// @notice Serialize change pub key pubData
+  /// Layout: type(1) | accountIndex(6) | masterAccountIndex(6) | apiKeyIndex(1) | pubKey(33) = 47 bytes
+  function writeChangeECDSAPubKeyPubDataForPriorityQueue(
+    uint48 accountIndex,
+    uint48 masterAccountIndex,
+    uint8 apiKeyIndex,
+    bytes memory pubKey
+  ) internal pure returns (bytes memory buf) {
+    buf = abi.encodePacked(uint8(PriorityPubDataTypeL1ChangeECDSAPubKey), accountIndex, masterAccountIndex, apiKeyIndex, pubKey);
   }
 
   struct SetSystemConfig {
@@ -370,17 +377,26 @@ library TxTypes {
   }
 
   /// @notice Serialize set system config pubData
-  function writeSetSystemConfigPubDataForPriorityQueue(SetSystemConfig memory _tx) internal pure returns (bytes memory buf) {
+  function writeSetSystemConfigPubDataForPriorityQueue(
+    uint48 liquidityPoolIndex,
+    uint48 stakingPoolIndex,
+    uint48 liquidityPoolCooldownPeriod,
+    uint48 stakingPoolLockupPeriod,
+    uint32 maxIntegratorPerpsTakerFee,
+    uint32 maxIntegratorPerpsMakerFee,
+    uint32 maxIntegratorSpotTakerFee,
+    uint32 maxIntegratorSpotMakerFee
+  ) internal pure returns (bytes memory buf) {
     buf = abi.encodePacked(
       uint8(PriorityPubDataTypeL1SetSystemConfig),
-      _tx.liquidityPoolIndex,
-      _tx.stakingPoolIndex,
-      _tx.liquidityPoolCooldownPeriod,
-      _tx.stakingPoolLockupPeriod,
-      _tx.maxIntegratorPerpsTakerFee,
-      _tx.maxIntegratorPerpsMakerFee,
-      _tx.maxIntegratorSpotTakerFee,
-      _tx.maxIntegratorSpotMakerFee
+      liquidityPoolIndex,
+      stakingPoolIndex,
+      liquidityPoolCooldownPeriod,
+      stakingPoolLockupPeriod,
+      maxIntegratorPerpsTakerFee,
+      maxIntegratorPerpsMakerFee,
+      maxIntegratorSpotTakerFee,
+      maxIntegratorSpotMakerFee
     );
   }
 
@@ -397,34 +413,45 @@ library TxTypes {
     uint56 indexPriceDivider; // Extended asset balance * index price / indexPriceDivider = extended USDC value
   }
 
-  /// @notice Serialize create asset pubData
-  function writeRegisterAssetPubDataForPriorityQueue(RegisterAsset memory _tx) internal pure returns (bytes memory buf) {
+  /// @notice Serialize register asset pubData with the richer legacy asset parameters
+  function writeRegisterAssetPubDataForPriorityQueue(
+    uint16 assetIndex,
+    uint56 extensionMultiplier,
+    uint64 minL2TransferAmount,
+    uint64 minL2WithdrawalAmount,
+    uint8 marginMode,
+    uint16 loanToValue,
+    uint16 liquidationThreshold,
+    uint16 liquidationFactor,
+    uint32 liquidationFee,
+    uint56 indexPriceDivider
+  ) internal pure returns (bytes memory buf) {
     buf = abi.encodePacked(
       uint8(PriorityPubDataTypeL1RegisterAsset),
-      _tx.assetIndex,
-      _tx.extensionMultiplier,
-      _tx.minL2TransferAmount,
-      _tx.minL2WithdrawalAmount,
-      _tx.marginMode,
-      _tx.loanToValue,
-      _tx.liquidationThreshold,
-      _tx.liquidationFactor,
-      _tx.liquidationFee,
-      _tx.indexPriceDivider
+      assetIndex,
+      extensionMultiplier,
+      minL2TransferAmount,
+      minL2WithdrawalAmount,
+      marginMode,
+      loanToValue,
+      liquidationThreshold,
+      liquidationFactor,
+      liquidationFee,
+      indexPriceDivider
     );
   }
 
-  /// @notice Serialize create order book pubData, includes metadata
+  /// @notice Serialize register asset pubData with the richer legacy metadata
   function writeRegisterAssetPubDataForPriorityQueueWithMetadata(
     bytes memory _data,
     uint8 l1Decimals,
-    uint8 l2decimals,
+    uint8 l2Decimals,
     uint8 priceDecimals,
     uint128 tickSize,
     address tokenAddress,
     bytes32 symbol
   ) internal pure returns (bytes memory buf) {
-    buf = abi.encodePacked(_data, l1Decimals, l2decimals, priceDecimals, tickSize, tokenAddress, symbol);
+    buf = abi.encodePacked(_data, l1Decimals, l2Decimals, priceDecimals, tickSize, tokenAddress, symbol);
   }
 
   struct UpdateAsset {
@@ -440,18 +467,28 @@ library TxTypes {
   }
 
   /// @notice Serialize update asset pubData
-  function writeUpdateAssetPubDataForPriorityQueue(UpdateAsset memory _tx) internal pure returns (bytes memory buf) {
+  function writeUpdateAssetPubDataForPriorityQueue(
+    uint16 assetIndex,
+    uint64 minL2TransferAmount,
+    uint64 minL2WithdrawalAmount,
+    uint8 marginMode,
+    uint16 loanToValue,
+    uint16 liquidationThreshold,
+    uint16 liquidationFactor,
+    uint32 liquidationFee,
+    uint56 indexPriceDivider
+  ) internal pure returns (bytes memory buf) {
     buf = abi.encodePacked(
       uint8(PriorityPubDataTypeL1UpdateAsset),
-      _tx.assetIndex,
-      _tx.minL2TransferAmount,
-      _tx.minL2WithdrawalAmount,
-      _tx.marginMode,
-      _tx.loanToValue,
-      _tx.liquidationThreshold,
-      _tx.liquidationFactor,
-      _tx.liquidationFee,
-      _tx.indexPriceDivider
+      assetIndex,
+      minL2TransferAmount,
+      minL2WithdrawalAmount,
+      marginMode,
+      loanToValue,
+      liquidationThreshold,
+      liquidationFactor,
+      liquidationFee,
+      indexPriceDivider
     );
   }
 }

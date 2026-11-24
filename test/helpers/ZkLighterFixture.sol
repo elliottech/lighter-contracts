@@ -11,6 +11,9 @@ import {ZkLighterTest} from "../../contracts/test/ZkLighterTest.sol";
 import {DesertVerifierTest} from "../../contracts/test/DesertVerifierTest.sol";
 import {OwnableERC20} from "../../contracts/test/OwnableERC20.sol";
 import {ZkLighterVerifierTest} from "../../contracts/test/ZkLighterVerifierTest.sol";
+import {IGovernance} from "../../contracts/interfaces/IGovernance.sol";
+import {IZkLighterPublic} from "../../contracts/interfaces/IZkLighter.sol";
+import {L1CoreMessaging} from "../../contracts/messaging/L1CoreMessaging.sol";
 import {TxTypes} from "../../contracts/lib/TxTypes.sol";
 import {Proxy} from "../../contracts/proxy/Proxy.sol";
 
@@ -21,6 +24,16 @@ abstract contract ZkLighterFixture is Test {
   event Deposit(uint48 toAccountIndex, address toAddress, uint16 assetIndex, TxTypes.RouteType routeType, uint128 baseAmount);
   event CreateMarket(TxTypes.CreateMarket params, uint8 sizeDecimals, uint8 priceDecimals, bytes32 symbol);
   event UpdateMarket(TxTypes.UpdateMarket params);
+  event SetSystemConfig(TxTypes.SetSystemConfig params);
+  event CreateOrder(
+    uint48 accountIndex,
+    uint48 masterAccountIndex,
+    uint64 publicMarketIndex,
+    uint48 baseAmount,
+    uint32 price,
+    uint8 isAsk,
+    uint8 orderType
+  );
   event NewPriorityRequest(address sender, uint64 serialId, uint8 pubdataType, bytes pubData, uint64 expirationTimestamp);
   event DesertMode();
 
@@ -67,6 +80,7 @@ abstract contract ZkLighterFixture is Test {
   Governance internal governance;
   AdditionalZkLighter internal additionalZkLighter;
   ZkLighterTest internal zklighter;
+  L1CoreMessaging internal coreMessaging;
 
   address internal sender1 = address(0x1001);
   address internal sender2 = address(0x1002);
@@ -86,12 +100,21 @@ abstract contract ZkLighterFixture is Test {
     AdditionalZkLighter additional = new AdditionalZkLighter();
     DesertVerifierTest desertVerifier = new DesertVerifierTest();
     ZkLighterTest implementation = new ZkLighterTest();
-    Proxy zklighterProxy = new Proxy(
-      address(implementation),
-      abi.encode(address(governance), address(verifier), address(additional), address(desertVerifier), GENESIS_STATE_ROOT, GENESIS_VALIDIUM_ROOT)
-    );
+    // P1 upgrades an already initialized P0 proxy and has no initializer of its own, so seed the proxy storage directly.
+    Proxy zklighterProxy = new Proxy(address(implementation), "");
     zklighter = ZkLighterTest(payable(address(zklighterProxy)));
+    zklighter.setGovernanceAddress(address(governance));
+    zklighter.setVerifierAddress(address(verifier));
+    zklighter.setAdditionalZkLighterAddress(address(additional));
+    zklighter.setDesertVerifierAddress(address(desertVerifier));
+    zklighter.registerDefaultAssetConfigs();
+    zklighter.setLastAccountIndex(2);
+    zklighter.setStoredBatchHash(0, keccak256(abi.encode(_genesisBatch())));
     additionalZkLighter = additional;
+
+    L1CoreMessaging coreMessagingImplementation = new L1CoreMessaging();
+    coreMessaging = L1CoreMessaging(address(new Proxy(address(coreMessagingImplementation), abi.encode(address(zklighter), address(governance)))));
+    zklighter.setCoreMessaging(address(coreMessaging));
 
     usdc.mint(sender1, type(uint128).max);
     usdc.mint(sender2, type(uint128).max);
@@ -114,14 +137,7 @@ abstract contract ZkLighterFixture is Test {
     }
     uint64 requestId = zklighter.executedPriorityRequestCount() + zklighter.openPriorityRequestCount();
     uint64 baseAmount = uint64(amount);
-    TxTypes.Deposit memory request = TxTypes.Deposit({
-      accountIndex: accountIndex,
-      toAddress: receiver,
-      assetIndex: 3,
-      routeType: TxTypes.RouteType.Perps,
-      baseAmount: baseAmount
-    });
-    bytes memory pubData = TxTypes.writeDepositPubDataForPriorityQueue(request);
+    bytes memory pubData = TxTypes.writeDepositPubDataForPriorityQueue(accountIndex, receiver, 3, TxTypes.RouteType.Perps, baseAmount);
 
     _expectPriorityEvent(sender, requestId, TxTypes.PriorityPubDataTypeL1Deposit, pubData);
     vm.expectEmit(false, false, false, true, address(zklighter));
@@ -134,14 +150,7 @@ abstract contract ZkLighterFixture is Test {
 
   function _depositUSDCToSystemAccount(address sender, address receiver, uint48 accountIndex) internal {
     uint64 requestId = zklighter.executedPriorityRequestCount() + zklighter.openPriorityRequestCount();
-    TxTypes.Deposit memory request = TxTypes.Deposit({
-      accountIndex: accountIndex,
-      toAddress: address(0),
-      assetIndex: 3,
-      routeType: TxTypes.RouteType.Perps,
-      baseAmount: 10_000_000
-    });
-    bytes memory pubData = TxTypes.writeDepositPubDataForPriorityQueue(request);
+    bytes memory pubData = TxTypes.writeDepositPubDataForPriorityQueue(accountIndex, address(0), 3, TxTypes.RouteType.Perps, 10_000_000);
 
     _expectPriorityEvent(sender, requestId, TxTypes.PriorityPubDataTypeL1Deposit, pubData);
     vm.expectEmit(false, false, false, true, address(zklighter));
@@ -158,14 +167,7 @@ abstract contract ZkLighterFixture is Test {
       accountIndex = zklighter.lastAccountIndex() + 1;
     }
     uint64 requestId = zklighter.executedPriorityRequestCount() + zklighter.openPriorityRequestCount();
-    TxTypes.Deposit memory request = TxTypes.Deposit({
-      accountIndex: accountIndex,
-      toAddress: receiver,
-      assetIndex: 1,
-      routeType: TxTypes.RouteType.Spot,
-      baseAmount: baseAmount
-    });
-    bytes memory pubData = TxTypes.writeDepositPubDataForPriorityQueue(request);
+    bytes memory pubData = TxTypes.writeDepositPubDataForPriorityQueue(accountIndex, receiver, 1, TxTypes.RouteType.Spot, baseAmount);
     uint256 amount = uint256(baseAmount) * 10 ** 10;
 
     _expectPriorityEvent(sender, requestId, TxTypes.PriorityPubDataTypeL1Deposit, pubData);
@@ -177,6 +179,23 @@ abstract contract ZkLighterFixture is Test {
     assertEq(zklighter.addressToAccountIndex(receiver), accountIndex);
   }
 
+  function _genesisBatch() internal pure returns (Storage.StoredBatchInfo memory) {
+    return
+      Storage.StoredBatchInfo({
+        batchNumber: 0,
+        endBlockNumber: 0,
+        batchSize: 0,
+        startTimestamp: 0,
+        endTimestamp: 0,
+        priorityRequestCount: 0,
+        prefixPriorityRequestHash: bytes32(0),
+        onChainOperationsHash: bytes32(0),
+        stateRoot: GENESIS_STATE_ROOT,
+        validiumRoot: GENESIS_VALIDIUM_ROOT,
+        commitment: bytes32(0)
+      });
+  }
+
   function _expectPriorityEvent(address sender, uint64 requestId, uint8 requestType, bytes memory pubData) internal {
     vm.expectEmit(false, false, false, true, address(zklighter));
     emit NewPriorityRequest(sender, requestId, requestType, pubData, uint64(block.timestamp + zklighter.PRIORITY_EXPIRATION()));
@@ -184,6 +203,16 @@ abstract contract ZkLighterFixture is Test {
 
   function _validPubKey() internal pure returns (bytes memory) {
     return hex"01000000000000000200000000000000030000000000000004000000000000000500000000000000";
+  }
+
+  /// @dev secp256k1 generator point, uncompressed [0x04 || x || y]
+  function _validECDSAPubKey() internal pure returns (bytes memory) {
+    return hex"0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8";
+  }
+
+  /// @dev Compressed form of `_validECDSAPubKey()`
+  function _validCompressedECDSAPubKey() internal pure returns (bytes memory) {
+    return hex"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
   }
 
   function _invalidPubKey() internal pure returns (bytes memory) {

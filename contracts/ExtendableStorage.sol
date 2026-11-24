@@ -36,4 +36,7 @@ contract ExtendableStorage {
   mapping(address => uint16) public tokenToAssetIndex; // token -> id
   mapping(uint16 => mapping(uint48 => PendingBalance)) internal pendingAssetBalances;
   mapping(uint16 => mapping(uint48 => bool)) internal accountPerformedDesertForAsset;
+
+  /// @dev Only this L1CoreMessaging proxy may append non-token Core requests.
+  address public coreMessaging;
 }

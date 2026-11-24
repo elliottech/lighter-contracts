@@ -101,6 +101,12 @@ contract Config {
   /// @dev Size of the public key for a Lighter API key
   uint8 constant PUB_KEY_BYTES_SIZE = 40;
 
+  /// @dev Size of uncompressed secp256k1 public key
+  uint8 constant ECDSA_UNCOMPRESSED_PUB_KEY_BYTES_SIZE = 65;
+
+  /// @dev Prime field modulus for secp256k1 curve
+  uint256 constant SECP256K1_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+
   /// @dev Address of the blob point evaluation precompile (EIP-4844)
   address constant POINT_EVALUATION_PRECOMPILE_ADDRESS = address(0x0A);
 

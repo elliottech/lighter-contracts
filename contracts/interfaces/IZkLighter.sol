@@ -141,6 +141,8 @@ interface IZkLighter is IEvents {
 
   error ZkLighter_DesertError();
 
+  error ZkLighter_DesertAddressNotRegistered();
+
   /// @notice Thrown when the number of blobs in a batch exceeds the maximum allowed
   error ZkLighter_InvalidBlobCount(uint256);
 
@@ -175,18 +177,14 @@ interface IZkLighter is IEvents {
   /// @param _accountIndex Array of account index values, will be used in the future
   function depositBatch(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external;
 
-  /// @notice Change public key of a Lighter account
-  /// @param _accountIndex Account index, or NIL_ACCOUNT_INDEX to target the caller's own master account
-  /// @param _apiKeyIndex API key index
-  /// @param _pubKey New public key (40 bytes)
-  function changePubKey(uint48 _accountIndex, uint8 _apiKeyIndex, bytes calldata _pubKey) external;
+  function addPriorityRequestExt(address sender, uint8 pubdataType, bytes calldata priorityRequest, bytes calldata pubDataWithMetadata) external;
 
   /// @notice Register a new asset config
   /// @param assetIndex Asset index
   /// @param tokenAddress Token address
   /// @param withdrawalsEnabled Withdrawals enabled flag
-  /// @param extensionMultiplier Extension multiplier of the asset
-  /// @param tickSize Tick size of the asset
+  /// @param extensionMultiplier Extension multiplier of the asset, in [1, MAX_ASSET_EXTENSION_MULTIPLIER] (= type(uint56).max)
+  /// @param tickSize Tick size of the asset, in [1, MAX_TICK_SIZE] (= type(uint128).max)
   /// @param depositCapTicks Deposit cap in ticks
   /// @param minDepositTicks Minimum deposit in ticks
   /// @dev This function is only callable by the governor
@@ -207,65 +205,6 @@ interface IZkLighter is IEvents {
   /// @param minDepositTicks Minimum deposit in ticks
   /// @dev This function is only callable by the governor
   function updateAssetConfig(uint16 assetIndex, uint8 withdrawalsEnabled, uint64 depositCapTicks, uint64 minDepositTicks) external;
-
-  /// @notice Set system config
-  /// @param _params Config parameters
-  function setSystemConfig(TxTypes.SetSystemConfig calldata _params) external;
-
-  /// @notice Register a new asset to Lighter
-  /// @param _l1Decimals Number of decimals of the asset on L1
-  /// @param _l2Decimals Number of decimals of the asset on L2
-  /// @param _priceDecimals Number of decimals for the price of the asset
-  /// @param _symbol Symbol of the asset
-  /// @param _params Asset parameters
-  function registerAsset(
-    uint8 _l1Decimals,
-    uint8 _l2Decimals,
-    uint8 _priceDecimals,
-    bytes32 _symbol,
-    TxTypes.RegisterAsset calldata _params
-  ) external;
-
-  /// @notice Update existing asset in Lighter
-  /// @param _params Asset parameters to update
-  function updateAsset(TxTypes.UpdateAsset calldata _params) external;
-
-  /// @notice Create new market and an order book
-  /// @param _size_decimals [metadata] Number of decimals to represent size of an order in the order book
-  /// @param _price_decimals [metadata] Number of decimals to represent price of an order in the order book
-  /// @param _symbol [metadata] symbol of the market
-  /// @param _params Order book parameters
-  function createMarket(uint8 _size_decimals, uint8 _price_decimals, bytes32 _symbol, TxTypes.CreateMarket calldata _params) external;
-
-  /// @notice Updates the given order book, all values should be provided
-  /// @param _params Order book parameters to update
-  function updateMarket(TxTypes.UpdateMarket calldata _params) external;
-
-  /// @notice Cancel all orders of a Lighter account
-  /// @param _accountIndex Account index
-  function cancelAllOrders(uint48 _accountIndex) external;
-
-  /// @notice Withdraw from Lighter
-  /// @param _accountIndex Account index
-  /// @param _assetIndex Asset index
-  /// @param _routeType Route type
-  /// @param _baseAmount Amount to withdraw
-  function withdraw(uint48 _accountIndex, uint16 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external;
-
-  /// @notice Create an order in perps market for a Lighter account
-  /// @param _accountIndex Account index
-  /// @param _publicMarketIndex Public market index
-  /// @param _baseAmount Amount of base token
-  /// @param _price Price of the order
-  /// @param _isAsk Flag to indicate if the order is ask or bid
-  /// @param _orderType Order type
-  function createOrder(uint48 _accountIndex, uint16 _publicMarketIndex, uint48 _baseAmount, uint32 _price, uint8 _isAsk, uint8 _orderType) external;
-
-  /// @notice Burn shares of an account in a public pool
-  /// @param _accountIndex Account index
-  /// @param _publicPoolIndex Public pool index
-  /// @param _shareAmount Amount of shares to burn
-  function burnShares(uint48 _accountIndex, uint48 _publicPoolIndex, uint64 _shareAmount) external;
 
   /// @notice Withdraws tokens from ZkLighter contract to the owner
   /// @param _owner Account address
@@ -344,4 +283,29 @@ interface IZkLighter is IEvents {
   /// @notice Can be called only by ZkLighter governor
   /// @param _newInsuranceFundOperator Address of the new insurance fund operator
   function setInsuranceFundOperator(address _newInsuranceFundOperator) external;
+}
+
+/// @dev Public storage getters of ZkLighter that L1CoreMessaging reads.
+/// Kept off IZkLighter because ZkLighter inherits their public-variable getters
+/// from Storage and ExtendableStorage.
+interface IZkLighterPublic is IZkLighter {
+  function treasury() external view returns (address);
+
+  function insuranceFundOperator() external view returns (address);
+
+  function addressToAccountIndex(address account) external view returns (uint48);
+
+  function assetConfigs(
+    uint16 assetIndex
+  )
+    external
+    view
+    returns (
+      address tokenAddress,
+      uint8 withdrawalsEnabled,
+      uint56 extensionMultiplier,
+      uint128 tickSize,
+      uint64 depositCapTicks,
+      uint64 minDepositTicks
+    );
 }

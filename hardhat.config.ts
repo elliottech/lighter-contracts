@@ -56,7 +56,7 @@ const config: HardhatUserConfig = {
     path: './abi',
     clear: true,
     flat: true,
-    only: [':Governance$', ':ZkLighter', ':StablePriceOracle'],
+    only: [':Governance$', ':ZkLighter', ':L1CoreMessaging$', ':StablePriceOracle'],
     spacing: 2,
   },
 
