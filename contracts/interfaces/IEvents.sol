@@ -61,4 +61,16 @@ interface IEvents {
   /// (`endEvmBlockNumber` + `endEvmBlockHash`) and serves as the boundary record for the
   /// batch number in every lifecycle stage.
   event DesertBatchVerified(uint64 indexed batchNumber, uint64 baseBatchNumber, uint256 endEvmBlockNumber, bytes32 endEvmBlockHash);
+
+  /// @notice ERC-20 tokens were locked in the bridge vault for an escrow manager.
+  event TokensLocked(address indexed escrowManager, address indexed token, uint256 amount);
+
+  /// @notice ERC-20 tokens were released from an escrow manager's bridge-vault balance.
+  event TokensReleased(address indexed escrowManager, address indexed token, address indexed to, uint256 amount);
+
+  /// @notice Vault escrow accounting was reassigned without moving tokens.
+  event EscrowTransferred(address indexed oldManager, address indexed newManager, address indexed token, uint256 amount);
+
+  /// @notice A pre-existing ZkLighter token balance was assigned to an escrow manager during an upgrade.
+  event TokenVaultBalanceMigrated(address indexed escrowManager, address indexed token, uint256 amount);
 }

@@ -37,6 +37,14 @@ interface IL1CoreMessaging {
     TxTypes.RegisterAsset calldata _params
   ) external;
   function registerDeposit(address sender, address to, uint32 assetIndex, TxTypes.RouteType routeType, uint64 baseAmount) external payable;
+  function registerDepositToEvmAccount(
+    address sender,
+    address evmAddress,
+    uint32 assetIndex,
+    TxTypes.RouteType routeType,
+    uint64 baseAmount
+  ) external payable;
+  function registerBatchDeposit(address sender, address[] calldata to, uint64[] calldata baseAmount) external;
   function finalizeEvmWrapperLink(address sender, uint32 assetIndex, address evmWrapper) external;
   function finalizeL1WrapperLink(address sender, uint32 assetIndex, address l1Wrapper) external;
   function getAccountIndexFromAddress(address _address) external view returns (uint48);

@@ -37,7 +37,7 @@ contract EvmInteropManager is Initializable, Config {
   event EvmNativeTokenLinked(uint32 indexed assetIndex, address indexed evmToken);
   event L1NativeGatewaySet(uint32 indexed assetIndex, address indexed evmGateway, address evmToken);
   event EvmNativeGatewayFinalized(uint32 indexed assetIndex, address indexed evmEscrowGateway);
-  event SentToCore(uint32 indexed assetIndex, address indexed from, address indexed to, uint256 amount);
+  event SentToCore(uint32 indexed assetIndex, address indexed from, address indexed to, bool isL1Account, uint256 amount);
   event SentToEvm(uint32 indexed assetIndex, address indexed from, address indexed evmRecipient, uint64 baseAmount);
   event ReceivedFromCore(uint32 indexed assetIndex, address indexed to, uint256 amount);
   event L1AccountRefundReceived(uint32 indexed assetIndex, address indexed l1Address, uint128 baseAmount);
@@ -350,7 +350,7 @@ contract EvmInteropManager is Initializable, Config {
       baseAmount: baseAmount
     });
 
-    emit SentToCore(_assetIndex, msg.sender, to, amount);
+    emit SentToCore(_assetIndex, msg.sender, to, isL1Account, amount);
   }
 
   /// @dev This function can technically be re-entered, but will eventually fail because of nonReentrant on sendToCore.

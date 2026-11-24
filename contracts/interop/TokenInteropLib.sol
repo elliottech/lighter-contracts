@@ -28,30 +28,23 @@ library TokenInteropLib {
   /// @param amount Amount to pull (in token units).
   /// @param isCanonicalLocal True when this domain is the canonical domain of the asset.
   function transferIn(address localToken, address localGateway, uint256 amount, bool isCanonicalLocal) internal {
-    if (isCanonicalLocal) {
-      IERC20 token = IERC20(localToken);
+    if (!isCanonicalLocal) assert(localGateway != address(0));
+    IERC20 token = IERC20(localToken);
 
-      // Pull tokens to the escrow destination:
-      // - If gateway selected: tokens go to escrow gateway
-      // - If no gateway yet: tokens stay in the interop manager (acts as escrow pre-selection)
-      address escrowDest = localGateway != address(0) ? localGateway : address(this);
+    uint256 balanceBefore = token.balanceOf(address(this));
+    SafeERC20.safeTransferFrom(token, msg.sender, address(this), amount);
+    if (token.balanceOf(address(this)) != balanceBefore + amount) revert TokenInteropLib_AmountMismatch();
 
-      uint256 balanceBefore = token.balanceOf(escrowDest);
-      SafeERC20.safeTransferFrom(token, msg.sender, escrowDest, amount);
-      uint256 balanceAfter = token.balanceOf(escrowDest);
-      if (balanceAfter != balanceBefore + amount) revert TokenInteropLib_AmountMismatch();
-    } else {
-      assert(localGateway != address(0));
-      // Transfer wrapper tokens to the gateway, then have the gateway burn them
-      IERC20 token = IERC20(localToken);
+    // Before gateway selection, canonical tokens remain escrowed in the IM.
+    if (localGateway == address(0)) return;
 
-      uint256 balanceBefore = token.balanceOf(localGateway);
-      SafeERC20.safeTransferFrom(token, msg.sender, localGateway, amount);
-      uint256 balanceAfter = token.balanceOf(localGateway);
-      if (balanceAfter != balanceBefore + amount) revert TokenInteropLib_AmountMismatch();
+    // Snapshot after the incoming transfer: a gateway caller has now sent its tokens out.
+    uint256 gatewayBalanceBefore = token.balanceOf(localGateway);
+    SafeERC20.safeTransfer(token, localGateway, amount);
+    if (token.balanceOf(localGateway) != gatewayBalanceBefore + amount) revert TokenInteropLib_AmountMismatch();
+    if (token.balanceOf(address(this)) != balanceBefore) revert TokenInteropLib_AmountMismatch();
 
-      IMintGateway(localGateway).managerBurn(localToken, amount);
-    }
+    if (!isCanonicalLocal) IMintGateway(localGateway).managerBurn(localToken, amount);
   }
 
   /// @dev Cached creation code for BeaconProxy — avoids re-reading bytecode on every call.

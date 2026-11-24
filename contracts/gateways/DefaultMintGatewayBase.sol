@@ -129,7 +129,7 @@ abstract contract DefaultMintGatewayBase is Initializable, IMintGateway, IBeacon
   ///   1. The local interop manager — always passes empty data (token deployed via checkOrDeployToken).
   ///   2. The counterpart escrow gateway (via messenger) — may pass deploy data for lazy deployment.
   function mint(address localToken, address to, uint256 amount, bytes calldata data) external override {
-    if (!_isCounterpartSender() && msg.sender != _interopManager()) revert DefaultMintGatewayBase_UnauthorizedReceive();
+    if (msg.sender != _interopManager() && !_isCounterpartSender()) revert DefaultMintGatewayBase_UnauthorizedReceive();
 
     if (localToken.code.length == 0) {
       if (data.length == 0) revert DefaultMintGatewayBase_MissingDeployData();

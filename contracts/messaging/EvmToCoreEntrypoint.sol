@@ -13,6 +13,7 @@ import {
   MIN_CLIENT_ORDER_INDEX,
   MAX_ORDER_INDEX
 } from "../Constants.sol";
+import {IEvmToCoreEntrypoint} from "../interfaces/IEvmToCoreEntrypoint.sol";
 import {IEvmToCoreMessenger} from "../interfaces/IEvmToCoreMessenger.sol";
 import {TxTypes} from "../lib/TxTypes.sol";
 
@@ -35,6 +36,7 @@ contract EvmToCoreEntrypoint is Config {
   error EvmToCoreEntrypoint_InvalidShareAmount();
   error EvmToCoreEntrypoint_L1AccountDoesNotExist();
   error EvmToCoreEntrypoint_ReentrantCall();
+  error EvmToCoreEntrypoint_UnknownOrder();
 
   IEvmToCoreMessenger public immutable EVM_TO_CORE_MESSENGER;
 
@@ -49,6 +51,7 @@ contract EvmToCoreEntrypoint is Config {
   /// @custom:storage-location erc7201:lighter.storage.EvmToCoreEntrypoint
   struct EvmToCoreEntrypointStorage {
     mapping(address => bool) registered;
+    mapping(uint64 reqId => IEvmToCoreEntrypoint.Order) orders;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lighter.storage.EvmToCoreEntrypoint")) - 1)) & ~bytes32(uint256(0xff))
@@ -115,6 +118,13 @@ contract EvmToCoreEntrypoint is Config {
     reqId = EVM_TO_CORE_MESSENGER.writeToCore(msg.sender, request);
   }
 
+  /// @notice The immutable inputs to the `createOrder` write.
+  /// @dev Reverts if `reqId` is not a Create Order write.
+  function getOrderMetadata(uint64 reqId) external view returns (IEvmToCoreEntrypoint.Order memory order) {
+    order = _getEvmToCoreEntrypointStorage().orders[reqId];
+    if (order.sender == address(0)) revert EvmToCoreEntrypoint_UnknownOrder();
+  }
+
   function _readU64LEAt(bytes calldata data, uint256 offset) private pure returns (uint64 value) {
     uint256 word;
     assembly {
@@ -156,20 +166,33 @@ contract EvmToCoreEntrypoint is Config {
       revert EvmToCoreEntrypoint_InvalidCreateOrderParameters();
     }
 
-    bytes memory request = TxTypes.writeEvmCreateOrder(
-      accountIndex,
-      marketIndex,
-      clientOrderIndex,
-      orderType,
-      timeInForce,
-      orderExpiry,
-      amount,
-      price,
-      isAsk,
-      reduceOnly,
-      triggerPrice
-    );
-    reqId = EVM_TO_CORE_MESSENGER.writeToCore(msg.sender, request);
+    {
+      bytes memory request = TxTypes.writeEvmCreateOrder(
+        accountIndex,
+        marketIndex,
+        clientOrderIndex,
+        orderType,
+        timeInForce,
+        orderExpiry,
+        amount,
+        price,
+        isAsk,
+        reduceOnly,
+        triggerPrice
+      );
+      reqId = EVM_TO_CORE_MESSENGER.writeToCore(msg.sender, request);
+    }
+
+    IEvmToCoreEntrypoint.Order storage order = _getEvmToCoreEntrypointStorage().orders[reqId];
+    order.sender = msg.sender;
+    order.accountIndex = accountIndex;
+    order.marketIndex = marketIndex;
+    order.orderType = orderType;
+    order.timeInForce = timeInForce;
+    order.isAsk = isAsk;
+    order.reduceOnly = reduceOnly;
+    order.clientOrderIndex = clientOrderIndex;
+    order.orderExpiry = orderExpiry;
   }
 
   /// @param orderIndex Either a client order index or an order index, so it spans both ranges.

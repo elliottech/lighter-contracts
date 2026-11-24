@@ -45,6 +45,11 @@ contract L1InteropManager is Initializable, Config {
     uint8 decimals;
   }
 
+  struct EvmAccountRefund {
+    uint128 baseAmount;
+    uint64 claimNonce;
+  }
+
   /// @custom:storage-location erc7201:lighter.storage.L1InteropManagerStorage
   struct L1InteropManagerStorage {
     mapping(uint32 assetIndex => CoreAssetL1Config) assetConfigs;
@@ -57,6 +62,7 @@ contract L1InteropManager is Initializable, Config {
     // EVM-native: maps assetIndex to the linked evmToken address (set during finalizeEvmNativeTokenLink).
     // Used in selectEvmNativeGatewayPair to look up token metadata stored by sendTokenInfo.
     mapping(uint32 => address) evmNativeLinkedToken;
+    mapping(address evmAddress => mapping(uint32 assetIndex => EvmAccountRefund)) evmAccountRefunds;
   }
 
   // keccak256(abi.encode(uint256(keccak256("lighter.storage.L1InteropManagerStorage")) - 1)) & ~bytes32(uint256(0xff))
@@ -91,6 +97,8 @@ contract L1InteropManager is Initializable, Config {
   error L1InteropManager_EthNotSupported();
   error L1InteropManager_InvalidAssetConfigParams();
   error L1InteropManager_ReentrantCall();
+  error L1InteropManager_ClaimNonceMismatch();
+  error L1InteropManager_InsufficientClaim();
 
   event AssetRegistered(uint32 indexed assetIndex, CanonicalDomain indexed canonicalDomain, address l1Token);
   event EvmTokenLinkInitiated(uint32 indexed assetIndex, address indexed evmToken);
@@ -104,8 +112,10 @@ contract L1InteropManager is Initializable, Config {
   event CoreTokenAdminUpdated(uint32 indexed assetIndex, address newAdmin);
   event DefaultL1MintGatewayTokenImplementationSet(address indexed newImpl);
   event DefaultEvmMintGatewayTokenImplementationRequested(address indexed newImpl);
-  event SentToCore(uint32 indexed assetIndex, address indexed from, address indexed to, uint256 amount);
+  event SentToCore(uint32 indexed assetIndex, address indexed from, address indexed to, bool isL1Account, uint256 amount);
   event ReceivedFromCore(uint32 indexed assetIndex, address indexed to, uint256 amount);
+  event EvmAccountRefundCredited(uint32 indexed assetIndex, address indexed evmAddress, uint128 baseAmount);
+  event EvmAccountRefundClaimed(uint32 indexed assetIndex, address indexed evmAddress, address indexed recipient, uint128 baseAmount);
 
   modifier nonReentrant() {
     bool locked;
@@ -144,7 +154,7 @@ contract L1InteropManager is Initializable, Config {
   }
 
   function _onlyEvmInteropManager() internal view {
-    if (msg.sender != address(ZK_LIGHTER) || ZK_LIGHTER.l2Sender() != EVM_INTEROP_MANAGER) {
+    if (msg.sender != ZK_LIGHTER.l1CallProxy() || ZK_LIGHTER.l2Sender() != EVM_INTEROP_MANAGER) {
       revert L1InteropManager_NotEvmInteropManager();
     }
   }
@@ -155,7 +165,7 @@ contract L1InteropManager is Initializable, Config {
   }
 
   function _onlyCoreSystem() internal view {
-    if (msg.sender != address(ZK_LIGHTER) || ZK_LIGHTER.l2Sender() != LIGHTER_CORE_SYSTEM_ADDR) {
+    if (msg.sender != ZK_LIGHTER.l1CallProxy() || ZK_LIGHTER.l2Sender() != LIGHTER_CORE_SYSTEM_ADDR) {
       revert L1InteropManager_CallerNotAuthorized();
     }
   }
@@ -178,6 +188,9 @@ contract L1InteropManager is Initializable, Config {
     DEFAULT_L1_ESCROW_GATEWAY = _defaultL1EscrowGateway;
     DEFAULT_EVM_ESCROW_GATEWAY = _defaultEvmEscrowGateway;
   }
+
+  // TODO: Initialize USDC with its selected gateway pair.
+  function initialize(bytes calldata) external virtual initializer {}
 
   function upgrade(bytes calldata) external {}
 
@@ -364,7 +377,7 @@ contract L1InteropManager is Initializable, Config {
   /// 2. [EVM] onLinkEvmNativeToken — validates, sets evmToken, sends 0x45 to Core
   /// 3. [Core] fulfills 0x45 — sets evmToken on Core, produces L1Call to L1
   /// 4. [L1] finalizeEvmNativeTokenLink — stores evmNativeLinkedToken  **THIS STEP**
-  function finalizeEvmNativeTokenLink(uint32 assetIndex, address evmToken) external onlyCoreSystem {
+  function finalizeEvmNativeTokenLink(uint32 assetIndex, address evmToken) external onlyCoreSystem nonReentrant {
     L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
 
     // The below check is technically unnecessary since EVM will only let
@@ -376,7 +389,7 @@ contract L1InteropManager is Initializable, Config {
   }
 
   /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-  /*          L1 NATIVE GATEWAY SELECTION FUNCTIONS            */
+  /*          L1 NATIVE GATEWAY SELECTION FUNCTIONS             */
   /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
   /// @notice L1-native gateway pair selection — Step 1 (L1).
@@ -385,7 +398,7 @@ contract L1InteropManager is Initializable, Config {
   /// Selection steps:
   /// 1. [L1] selectL1NativeGatewayPair — validates, sends L1 to EVM with metadata  **THIS STEP**
   /// 2. [EVM] onL1NativeGatewaySelection — deploys wrapped token, sets evmConfig, acks to L1
-  /// 3. [L1] finalizeL1NativeGatewayPair — sets l1Gateway, transfers escrow, notifies Core
+  /// 3. [L1] finalizeL1NativeGatewayPair — sets l1Gateway, reassigns vault escrow, notifies Core
   function selectL1NativeGatewayPair(
     uint32 assetIndex,
     address evmGateway,
@@ -440,23 +453,24 @@ contract L1InteropManager is Initializable, Config {
   }
 
   /// @notice L1-native gateway pair selection — Step 3 (L1).
-  /// Sets l1Gateway, transfers escrowed L1 tokens, notifies Core.
+  /// Sets l1Gateway, reassigns its vault escrow accounting, and notifies Core.
   ///
   /// Selection steps:
   /// 1. [L1] selectL1NativeGatewayPair — sends L1 to EVM with metadata
   /// 2. [EVM] onL1NativeGatewaySelection — deploys wrapped token, sets evmConfig, acks to L1 with l1Gateway
   /// 3. [L1] finalizeL1NativeGatewayPair — sets l1Gateway, notifies Core  **THIS STEP**
-  function finalizeL1NativeGatewayPair(uint32 assetIndex, address l1Gateway, address wrappedEvmToken) external onlyEvmInteropManager {
+  function finalizeL1NativeGatewayPair(uint32 assetIndex, address l1Gateway, address wrappedEvmToken) external onlyEvmInteropManager nonReentrant {
     L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
     if ($.assetConfigs[assetIndex].l1Gateway != address(0)) revert L1InteropManager_L1GatewayAlreadySet();
 
     // Finalize: set l1Gateway on the asset config
     $.assetConfigs[assetIndex].l1Gateway = l1Gateway;
 
-    // Transfer escrowed L1 tokens to the escrow gateway
+    // Reassign every token accounted to L1IM to the selected gateway. The
+    // tokens remain physically inside ZkLighter.
     address l1Token = $.assetConfigs[assetIndex].l1Token;
-    uint256 balance = IERC20(l1Token).balanceOf(address(this));
-    if (balance > 0) IERC20(l1Token).safeTransfer(l1Gateway, balance);
+    uint256 escrow = ZK_LIGHTER.escrowedTokens(address(this), l1Token);
+    if (escrow > 0) ZK_LIGHTER.transferEscrow(l1Token, l1Gateway);
 
     // Notify Core of the EVM link
     L1_CORE_MESSAGING.finalizeEvmWrapperLink(msg.sender, assetIndex, wrappedEvmToken);
@@ -465,7 +479,7 @@ contract L1InteropManager is Initializable, Config {
   }
 
   /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-  /*         EVM NATIVE GATEWAY SELECTION FUNCTIONS            */
+  /*         EVM NATIVE GATEWAY SELECTION FUNCTIONS             */
   /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
   /// @notice EVM-native gateway pair selection — Step 1 (L1).
@@ -537,7 +551,11 @@ contract L1InteropManager is Initializable, Config {
   /// 1. [L1] selectEvmNativeGatewayPair — deploys L1 wrapper, sends L1 to EVM
   /// 2. [EVM] onEvmNativeGatewaySelection — validates, finalizes EVM side, acks to L1 with (l1Gateway, l1Wrapper)
   /// 3. [L1] finalizeEvmNativeGatewayPairOnL1 — activates l1Gateway, notifies Core  **THIS STEP**
-  function finalizeEvmNativeGatewayPairOnL1(uint32 assetIndex, address l1MintGateway, address expectedL1Wrapper) external onlyEvmInteropManager {
+  function finalizeEvmNativeGatewayPairOnL1(
+    uint32 assetIndex,
+    address l1MintGateway,
+    address expectedL1Wrapper
+  ) external onlyEvmInteropManager nonReentrant {
     L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
     if ($.assetConfigs[assetIndex].l1Gateway != address(0)) revert L1InteropManager_L1GatewayAlreadySet();
 
@@ -606,7 +624,16 @@ contract L1InteropManager is Initializable, Config {
     emit CoreTokenAdminUpdated(assetIndex, newAdmin);
   }
 
+  /// @notice Deposit to an L1-controlled Core account (the original interface).
   function sendToCore(uint32 _assetIndex, address to, uint256 amount, TxTypes.RouteType routeType) external payable nonReentrant {
+    _sendToCore({_assetIndex: _assetIndex, to: to, isL1Account: true, amount: amount, routeType: routeType});
+  }
+
+  function sendToCore(uint32 _assetIndex, address to, bool isL1Account, uint256 amount, TxTypes.RouteType routeType) external payable nonReentrant {
+    _sendToCore({_assetIndex: _assetIndex, to: to, isL1Account: isL1Account, amount: amount, routeType: routeType});
+  }
+
+  function _sendToCore(uint32 _assetIndex, address to, bool isL1Account, uint256 amount, TxTypes.RouteType routeType) private {
     L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
     CoreAssetL1Config memory cfg = $.assetConfigs[_assetIndex];
 
@@ -619,20 +646,111 @@ contract L1InteropManager is Initializable, Config {
       if (msg.value != amount) revert TokenInteropLib.TokenInteropLib_InsufficientMsgValue();
     } else {
       if (msg.value != 0) revert TokenInteropLib.TokenInteropLib_InvalidDepositAmount();
-      TokenInteropLib.transferIn({
-        isCanonicalLocal: cfg.canonicalDomain == CanonicalDomain.L1,
-        localToken: cfg.l1Token,
-        localGateway: cfg.l1Gateway,
-        amount: amount
-      });
+      if (cfg.canonicalDomain == CanonicalDomain.L1) {
+        _lockCanonicalTokens(cfg.l1Token, amount);
+        if (cfg.l1Gateway != address(0)) ZK_LIGHTER.transferEscrow(cfg.l1Token, cfg.l1Gateway);
+      } else {
+        assert(cfg.l1Gateway != address(0));
+        IERC20 token = IERC20(cfg.l1Token);
+        uint256 balanceBefore = token.balanceOf(cfg.l1Gateway);
+        token.safeTransferFrom(msg.sender, cfg.l1Gateway, amount);
+        if (token.balanceOf(cfg.l1Gateway) != balanceBefore + amount) revert TokenInteropLib.TokenInteropLib_AmountMismatch();
+        IMintGateway(cfg.l1Gateway).managerBurn(cfg.l1Token, amount);
+      }
     }
     uint64 baseAmount = TokenInteropLib.toBaseAmount({amount: amount, tickSize: cfg.tickSize});
-    L1_CORE_MESSAGING.registerDeposit{value: msg.value}(msg.sender, to, _assetIndex, routeType, baseAmount);
+    if (isL1Account) {
+      L1_CORE_MESSAGING.registerDeposit{value: msg.value}({
+        sender: msg.sender,
+        to: to,
+        assetIndex: _assetIndex,
+        routeType: routeType,
+        baseAmount: baseAmount
+      });
+    } else {
+      L1_CORE_MESSAGING.registerDepositToEvmAccount{value: msg.value}({
+        sender: msg.sender,
+        evmAddress: to,
+        assetIndex: _assetIndex,
+        routeType: routeType,
+        baseAmount: baseAmount
+      });
+    }
+    emit SentToCore(_assetIndex, msg.sender, to, isL1Account, amount);
+  }
 
-    emit SentToCore(_assetIndex, msg.sender, to, amount);
+  function _lockCanonicalTokens(address token, uint256 amount) private {
+    IERC20 erc20 = IERC20(token);
+    uint256 balanceBefore = erc20.balanceOf(address(this));
+    erc20.safeTransferFrom(msg.sender, address(this), amount);
+    uint256 balanceAfter = erc20.balanceOf(address(this));
+    if (balanceAfter != balanceBefore + amount) revert TokenInteropLib.TokenInteropLib_AmountMismatch();
+    erc20.forceApprove(address(ZK_LIGHTER), amount);
+    ZK_LIGHTER.lockTokens(token, amount);
+    erc20.forceApprove(address(ZK_LIGHTER), 0);
   }
 
   function receiveFromCore(uint32 assetIndex, address to, uint128 baseAmount) external onlyCoreSystem {
+    _receiveFromCore(assetIndex, to, baseAmount);
+  }
+
+  /// @notice Credit an L1 refund owned by an EVM address when Core cannot refund
+  /// the asset on EVM.
+  /// @dev Only records the claim; backing stays in its existing escrow.
+  function receiveEvmAccountRefund(address evmAddress, uint32 assetIndex, uint128 baseAmount) external onlyCoreSystem nonReentrant {
+    _creditEvmAccountRefund(evmAddress, assetIndex, baseAmount);
+  }
+
+  /// @notice Credit a cancelled deposit directly during ZkLighter's desert cancellation.
+  /// @dev ZkLighter enforces desert mode and authenticates the unprocessed queue suffix.
+  /// A direct call has no l2Sender; rejecting bridged calls prevents an EVM user
+  /// from using ZkLighter's generic message fulfillment to create refund credits.
+  function creditEvmAccountRefundForDesert(address evmAddress, uint32 assetIndex, uint128 baseAmount) external nonReentrant {
+    if (msg.sender != address(ZK_LIGHTER) || ZK_LIGHTER.l2Sender() != address(0)) revert L1InteropManager_CallerNotAuthorized();
+    _creditEvmAccountRefund(evmAddress, assetIndex, baseAmount);
+  }
+
+  function _creditEvmAccountRefund(address evmAddress, uint32 assetIndex, uint128 baseAmount) private {
+    if (!isActiveOnL1(assetIndex)) revert TokenInteropLib.TokenInteropLib_AssetNotActive();
+    if (evmAddress == address(0)) revert TokenInteropLib.TokenInteropLib_RecipientAddressInvalid();
+    if (baseAmount == 0) revert TokenInteropLib.TokenInteropLib_InvalidDepositAmount();
+
+    L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
+    $.evmAccountRefunds[evmAddress][assetIndex].baseAmount += baseAmount;
+    emit EvmAccountRefundCredited(assetIndex, evmAddress, baseAmount);
+  }
+
+  /// @notice Claim the full L1 refund for the authenticated EVM sender.
+  /// @dev Send this calldata via EvmToL1Messenger.initiateWithdrawal and fulfill
+  /// the resulting EVM L1 call on ZkLighter. The nonce prevents an older queued
+  /// claim from consuming new credits after another claim has succeeded.
+  function claimEvmAccountRefund(uint32 assetIndex, uint64 claimNonce, address recipient) external nonReentrant {
+    if (msg.sender != ZK_LIGHTER.l1CallProxy()) revert L1InteropManager_CallerNotAuthorized();
+    if (recipient == address(0)) revert TokenInteropLib.TokenInteropLib_RecipientAddressInvalid();
+    address evmAddress = ZK_LIGHTER.l2Sender();
+
+    L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
+    EvmAccountRefund storage refund = $.evmAccountRefunds[evmAddress][assetIndex];
+    if (refund.claimNonce != claimNonce) revert L1InteropManager_ClaimNonceMismatch();
+    uint128 baseAmount = refund.baseAmount;
+    if (baseAmount == 0) revert L1InteropManager_InsufficientClaim();
+    refund.baseAmount = 0;
+    unchecked {
+      refund.claimNonce = claimNonce + 1;
+    }
+
+    // ETH refunds needs to be paid through ZkLighter. We re-use
+    // `_receiveFromCore` for ERC-20 handling to branch through the appropriate
+    // owner of the tokens (L1IM vs a gateway)
+    if (assetIndex == NATIVE_ASSET_INDEX) {
+      ZK_LIGHTER.payEvmAccountEthRefund(recipient, baseAmount);
+    } else {
+      _receiveFromCore(assetIndex, recipient, baseAmount);
+    }
+    emit EvmAccountRefundClaimed(assetIndex, evmAddress, recipient, baseAmount);
+  }
+
+  function _receiveFromCore(uint32 assetIndex, address to, uint128 baseAmount) private {
     if (assetIndex == NATIVE_ASSET_INDEX) revert L1InteropManager_EthNotSupported();
 
     if (!isActiveOnL1(assetIndex)) revert TokenInteropLib.TokenInteropLib_AssetNotActive();
@@ -646,16 +764,16 @@ contract L1InteropManager is Initializable, Config {
     // CanonicalDomain.L1.
     if (cfg.l1Gateway != address(0)) {
       if (cfg.canonicalDomain == CanonicalDomain.L1) {
-        // L1-native: escrow moved to gateway during selection
+        // The gateway manages escrow held in the ZkLighter vault.
         IEscrowGateway(cfg.l1Gateway).unlock(cfg.l1Token, to, amount);
       } else {
         // Non-L1-native: mint via gateway
         IMintGateway(cfg.l1Gateway).mint(cfg.l1Token, to, amount, "");
       }
     } else {
-      // No gateway selected yet: L1InteropManager still holds L1-native tokens directly
+      // Before gateway selection, L1IM is the vault escrow manager.
       assert(cfg.canonicalDomain == CanonicalDomain.L1);
-      SafeERC20.safeTransfer(IERC20(cfg.l1Token), to, amount);
+      ZK_LIGHTER.releaseTokens(cfg.l1Token, to, amount);
     }
 
     emit ReceivedFromCore(assetIndex, to, amount);
@@ -709,6 +827,11 @@ contract L1InteropManager is Initializable, Config {
   function evmNativeLinkedToken(uint32 assetIndex) external view returns (address) {
     L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
     return $.evmNativeLinkedToken[assetIndex];
+  }
+
+  function evmAccountRefunds(address evmAddress, uint32 assetIndex) external view returns (uint128 baseAmount, uint64 claimNonce) {
+    EvmAccountRefund storage refund = _getL1InteropManagerStorage().evmAccountRefunds[evmAddress][assetIndex];
+    return (refund.baseAmount, refund.claimNonce);
   }
 
   /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

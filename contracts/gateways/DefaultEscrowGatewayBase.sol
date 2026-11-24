@@ -97,7 +97,7 @@ abstract contract DefaultEscrowGatewayBase is Initializable, IEscrowGateway {
       }
     }
 
-    IERC20(localToken).safeTransfer(to, amount);
+    _releaseTokens(localToken, to, amount);
     emit TokensUnlocked(localToken, to, amount);
   }
 
@@ -125,8 +125,16 @@ abstract contract DefaultEscrowGatewayBase is Initializable, IEscrowGateway {
       deployData = abi.encode(token, name, symbol, decimals);
     }
 
-    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+    _lockTokens(token, amount);
 
     message = abi.encodeCall(IMintGateway.mint, (externalToken, to, amount, deployData));
+  }
+
+  function _lockTokens(address token, uint256 amount) internal virtual {
+    IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+  }
+
+  function _releaseTokens(address token, address to, uint256 amount) internal virtual {
+    IERC20(token).safeTransfer(to, amount);
   }
 }

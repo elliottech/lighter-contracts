@@ -14,7 +14,7 @@ import {TxTypes} from "../lib/TxTypes.sol";
 /// @dev Governance and user actions that enqueue Core priority requests live here,
 /// and the corresponding events are emitted from this contract.
 contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
-  event Deposit(uint48 toAccountIndex, address toAddress, uint32 assetIndex, TxTypes.RouteType routeType, uint128 baseAmount);
+  event Deposit(uint48 toAccountIndex, address toAddress, bool isL1Account, uint32 assetIndex, TxTypes.RouteType routeType, uint128 baseAmount);
   event ChangePubKey(uint48 accountIndex, uint8 apiKeyIndex, bytes pubKey);
   event CreateMarket(TxTypes.CreateMarket params, uint8 sizeDecimals, uint8 priceDecimals, bytes32 symbol);
   event UpdateAsset(TxTypes.UpdateAsset params);
@@ -40,6 +40,8 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
   IL1InteropManager public immutable INTEROP_MANAGER;
 
   error L1CoreMessaging_NotInteropManager();
+  error L1CoreMessaging_NotDirectZkLighter();
+  error L1CoreMessaging_InvalidBatchLength();
   error L1CoreMessaging_AssetNotActive();
   error L1CoreMessaging_InvalidWithdrawAmount();
   error L1CoreMessaging_ZeroAddress();
@@ -242,6 +244,7 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
     }
   }
 
+  /// @notice Register an L1-funded deposit to an L1-controlled Core account.
   function registerDeposit(
     address sender,
     address to,
@@ -249,6 +252,25 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
     TxTypes.RouteType routeType,
     uint64 baseAmount
   ) external payable onlyInteropManager {
+    _registerDeposit(sender, to, assetIndex, routeType, baseAmount, msg.value);
+  }
+
+  /// @notice Register a batch of USDC deposits already custody-checked by ZkLighter.
+  /// @dev The zero l2Sender check distinguishes a direct depositBatch call from an
+  /// EVM or Core-originated call relayed through ZkLighter.fulfillCoreL1Call.
+  function registerBatchDeposit(address sender, address[] calldata to, uint64[] calldata baseAmount) external {
+    if (msg.sender != address(ZK_LIGHTER) || ZK_LIGHTER.l2Sender() != address(0)) {
+      revert L1CoreMessaging_NotDirectZkLighter();
+    }
+    if (to.length == 0 || to.length != baseAmount.length || to.length > MAX_BATCH_DEPOSIT_LENGTH) {
+      revert L1CoreMessaging_InvalidBatchLength();
+    }
+    for (uint256 i = 0; i < to.length; ++i) {
+      _registerDeposit(sender, to[i], USDC_ASSET_INDEX, TxTypes.RouteType.Perps, baseAmount[i], 0);
+    }
+  }
+
+  function _registerDeposit(address sender, address to, uint32 assetIndex, TxTypes.RouteType routeType, uint64 baseAmount, uint256 value) private {
     CoreMessagingStorage storage $ = _getCoreMessagingStorage();
     uint48 _toAccountIndex = _getAccountIndexFromAddress(to);
     // No account could be found for the address
@@ -269,8 +291,26 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
       baseAmount: baseAmount
     });
     // We avoid using the `_addPriorityRequest` helper here since we want to forward the msg.value.
-    ZK_LIGHTER.addPriorityRequestExt{value: msg.value}(sender, TxTypes.PriorityPubDataTypeL1Deposit, pubData, pubData);
-    emit Deposit(_toAccountIndex, to, assetIndex, routeType, baseAmount);
+    ZK_LIGHTER.addPriorityRequestExt{value: value}(sender, TxTypes.PriorityPubDataTypeL1Deposit, pubData, pubData);
+    emit Deposit(_toAccountIndex, to, true, assetIndex, routeType, baseAmount);
+  }
+
+  /// @notice Register an L1-funded deposit to an EVM-controlled Core account.
+  function registerDepositToEvmAccount(
+    address sender,
+    address evmAddress,
+    uint32 assetIndex,
+    TxTypes.RouteType routeType,
+    uint64 baseAmount
+  ) external payable onlyInteropManager {
+    bytes memory pubData = TxTypes.writeDepositToEvmAccountPubDataForPriorityQueue({
+      evmAddress: evmAddress,
+      assetIndex: assetIndex,
+      routeType: routeType,
+      baseAmount: baseAmount
+    });
+    ZK_LIGHTER.addPriorityRequestExt{value: msg.value}(sender, TxTypes.PriorityPubDataTypeL1DepositToEvmAccount, pubData, pubData);
+    emit Deposit(NIL_ACCOUNT_INDEX, evmAddress, false, assetIndex, routeType, baseAmount);
   }
 
   function finalizeEvmWrapperLink(address sender, uint32 assetIndex, address evmWrapper) external onlyInteropManager {
@@ -428,11 +468,16 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
       if (baseAssetIndex == quoteAssetIndex) revert L1CoreMessaging_InvalidMarketAssets();
       if (!_isAssetRegistered(baseAssetIndex)) revert L1CoreMessaging_InvalidAssetIndex();
       if (!_isAssetRegistered(quoteAssetIndex)) revert L1CoreMessaging_InvalidAssetIndex();
-      if (sizeExtensionMultiplier == 0 || sizeExtensionMultiplier > MAX_ASSET_EXTENSION_MULTIPLIER || sizeExtensionMultiplier % Config.FEE_TICK != 0)
+      if (
+        sizeExtensionMultiplier == 0 || sizeExtensionMultiplier > MAX_ASSET_EXTENSION_MULTIPLIER || sizeExtensionMultiplier % Config.FEE_TICK != 0
+      ) {
         revert L1CoreMessaging_InvalidExtensionMultiplier();
+      }
       if (
         quoteExtensionMultiplier == 0 || quoteExtensionMultiplier > MAX_ASSET_EXTENSION_MULTIPLIER || quoteExtensionMultiplier % Config.FEE_TICK != 0
-      ) revert L1CoreMessaging_InvalidExtensionMultiplier();
+      ) {
+        revert L1CoreMessaging_InvalidExtensionMultiplier();
+      }
       _validateCommonSpotMarketParams({
         takerFee: takerFee,
         makerFee: makerFee,
@@ -532,8 +577,9 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
     {
       uint48 minBaseAmount = Bytes.unsafeReadU48At(_data, 0x0c);
       minQuoteAmount = Bytes.unsafeReadU48At(_data, 0x12);
-      if (minBaseAmount == 0 || minBaseAmount > MAX_ORDER_BASE_AMOUNT || minQuoteAmount == 0 || minQuoteAmount > MAX_ORDER_QUOTE_AMOUNT)
+      if (minBaseAmount == 0 || minBaseAmount > MAX_ORDER_BASE_AMOUNT || minQuoteAmount == 0 || minQuoteAmount > MAX_ORDER_QUOTE_AMOUNT) {
         revert L1CoreMessaging_InvalidMinAmounts();
+      }
     }
 
     {
@@ -559,8 +605,9 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
     if (makerFee > FEE_TICK || takerFee > FEE_TICK) {
       revert L1CoreMessaging_InvalidFeeAmount();
     }
-    if (minBaseAmount == 0 || minBaseAmount > MAX_ORDER_BASE_AMOUNT || minQuoteAmount == 0 || minQuoteAmount > MAX_ORDER_QUOTE_AMOUNT)
+    if (minBaseAmount == 0 || minBaseAmount > MAX_ORDER_BASE_AMOUNT || minQuoteAmount == 0 || minQuoteAmount > MAX_ORDER_QUOTE_AMOUNT) {
       revert L1CoreMessaging_InvalidMinAmounts();
+    }
     if (orderQuoteLimit > MAX_ORDER_QUOTE_AMOUNT || minQuoteAmount > orderQuoteLimit) {
       revert L1CoreMessaging_InvalidMarketLimits();
     }
@@ -574,7 +621,9 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
   function withdraw(uint48 _accountIndex, uint32 _assetIndex, TxTypes.RouteType _routeType, uint64 _baseAmount) external {
     if (_accountIndex > MAX_ACCOUNT_INDEX) revert L1CoreMessaging_InvalidAccountIndex();
     if (!_isAssetRegistered(_assetIndex)) revert L1CoreMessaging_AssetNotActive();
-    if (_baseAmount == 0 || _baseAmount > MAX_WITHDRAWAL_BASE_AMOUNT) revert L1CoreMessaging_InvalidWithdrawAmount();
+    if (_baseAmount == 0 || _baseAmount > MAX_WITHDRAWAL_BASE_AMOUNT) {
+      revert L1CoreMessaging_InvalidWithdrawAmount();
+    }
 
     uint48 _masterAccountIndex = _getAccountIndexFromAddress(msg.sender);
     if (_masterAccountIndex == NIL_ACCOUNT_INDEX) revert L1CoreMessaging_AccountIsNotRegistered();
@@ -740,7 +789,9 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
   /// may target the caller's master or any of its sub-accounts; authorization
   /// is proven by resolving the master from msg.sender.
   function sendToEvm(uint48 _accountIndex, uint32 _assetIndex, address _evmRecipient, TxTypes.RouteType _routeType, uint64 _baseAmount) external {
-    if (_accountIndex > MAX_ACCOUNT_INDEX) revert L1CoreMessaging_InvalidAccountIndex();
+    if (_accountIndex > MAX_ACCOUNT_INDEX) {
+      revert L1CoreMessaging_InvalidAccountIndex();
+    }
     if (!_isAssetRegistered(_assetIndex)) revert L1CoreMessaging_AssetNotActive();
     if (_baseAmount == 0) revert L1CoreMessaging_InvalidBaseAmount();
     if (_evmRecipient == address(0)) revert L1CoreMessaging_ZeroAddress();
@@ -774,7 +825,9 @@ contract L1CoreMessaging is Initializable, Config, IL1CoreMessaging {
   ) external {
     if (_accountIndex > MAX_ACCOUNT_INDEX) revert L1CoreMessaging_InvalidAccountIndex();
     if (!_isAssetRegistered(_assetIndex)) revert L1CoreMessaging_AssetNotActive();
-    if (_baseAmount == 0 || _baseAmount > MAX_WITHDRAWAL_BASE_AMOUNT) revert L1CoreMessaging_InvalidWithdrawAmount();
+    if (_baseAmount == 0 || _baseAmount > MAX_WITHDRAWAL_BASE_AMOUNT) {
+      revert L1CoreMessaging_InvalidWithdrawAmount();
+    }
     if (_l1Recipient == address(0)) revert L1CoreMessaging_ZeroAddress();
 
     uint48 _masterAccountIndex = _getAccountIndexFromAddress(msg.sender);

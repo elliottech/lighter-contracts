@@ -12,6 +12,7 @@ import "./lib/Bytes.sol";
 import "./lib/TxTypes.sol";
 import {IL1CoreMessaging} from "./interfaces/IL1CoreMessaging.sol";
 import {IL1InteropManager} from "./interfaces/IL1InteropManager.sol";
+import {IL1CallProxy} from "./interfaces/IL1CallProxy.sol";
 import {LIGHTER_CORE_SYSTEM_ADDR} from "./Constants.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
@@ -46,8 +47,11 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
       address _desertVerifier,
       address _stateRootUpgradeVerifier,
       address _coreMessaging,
-      address _desertBatchVerifier
-    ) = abi.decode(upgradeParameters, (address, address, address, address, address));
+      address _desertBatchVerifier,
+      address _l1InteropManager,
+      address l1CallProxy_,
+      address[] memory _tokenVaultTokens
+    ) = abi.decode(upgradeParameters, (address, address, address, address, address, address, address, address[]));
 
     if (_additionalZkLighter != address(0)) {
       if (!_hasCode(_additionalZkLighter)) {
@@ -81,6 +85,33 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
       }
       desertBatchVerifier = IOpenVmZkLighterVerifier(_desertBatchVerifier);
     }
+
+    if (l1CallProxy_ != address(0)) {
+      if (!_hasCode(l1CallProxy_) || IL1CallProxy(l1CallProxy_).ZK_LIGHTER() != address(this)) {
+        revert ZkLighter_InvalidUpgradeParameters();
+      }
+      _l1CallProxy = l1CallProxy_;
+    }
+    if (_l1CallProxy == address(0)) revert ZkLighter_InvalidUpgradeParameters();
+
+    if (_tokenVaultTokens.length == 0) return;
+
+    // Seed vault accounting before any migrated token goes through gateway
+    // selection. Selection later reassigns L1IM escrow to the chosen gateway.
+    uint256 tokenCount = _tokenVaultTokens.length;
+    for (uint256 i = 0; i < tokenCount; ++i) {
+      address token = _tokenVaultTokens[i];
+      if (!_hasCode(token)) revert ZkLighter_InvalidUpgradeParameters();
+
+      uint256 balance = IERC20(token).balanceOf(address(this));
+      tokenVaultEscrowedTokens[_l1InteropManager][token] = balance;
+      emit TokenVaultBalanceMigrated(_l1InteropManager, token, balance);
+    }
+  }
+
+  /// @inheritdoc IZkLighter
+  function depositBatch(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external {
+    delegateAdditional();
   }
 
   /// @inheritdoc IZkLighter
@@ -155,10 +186,12 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
   }
 
   /// @inheritdoc IZkLighter
-  /// @dev Each deposit is refunded to the toAddress in its pubdata, including deposits to
+  /// @dev L1-account deposits are refunded to the toAddress in their pubdata, including deposits to
   /// system accounts (treasury, insurance fund). A deposit whose pubdata carries no toAddress
   /// can only target a system account; its refund goes to that account's current role address,
   /// resolved via L1CoreMessaging.getSystemAddress, which reverts for any other account.
+  /// EVM-account deposits immediately credit an L1 claim owned by the EVM recipient,
+  /// without a separate L1 call fulfillment. No EVM token is required.
   function cancelOutstandingDepositsForDesertMode(uint64 _n, bytes[] calldata _priorityPubData) external nonReentrant {
     if (!desertMode) {
       revert ZkLighter_DesertError();
@@ -202,11 +235,26 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
           toAddress = IL1CoreMessaging(coreMessaging).getSystemAddress(accountIndex);
         }
         _persistDesertL1CallHash(toAddress, assetIndex, baseAmount);
+      } else if (uint8(pubData[0]) == TxTypes.PriorityPubDataTypeL1DepositToEvmAccount) {
+        if (pubDataLen != TxTypes.DEPOSIT_TO_EVM_ACCOUNT_PUB_DATA_SIZE) {
+          revert ZkLighter_DesertError();
+        }
+        (address evmAddress, uint32 assetIndex, uint64 baseAmount) = TxTypes.readDepositToEvmAccountFromCalldata(pubData);
+        IL1CoreMessaging(coreMessaging).INTEROP_MANAGER().creditEvmAccountRefundForDesert(evmAddress, assetIndex, baseAmount);
       }
     }
 
     openPriorityRequestCount -= _n;
     executedPriorityRequestCount += _n;
+  }
+
+  /// @inheritdoc IZkLighter
+  function payEvmAccountEthRefund(address recipient, uint128 baseAmount) external nonReentrant {
+    if (msg.sender != address(IL1CoreMessaging(coreMessaging).INTEROP_MANAGER())) {
+      revert ZkLighter_CallerNotInteropManager();
+    }
+    (bool success, ) = recipient.call{value: uint256(baseAmount) * uint256(ETH_TICK_SIZE)}("");
+    if (!success) revert ZkLighter_EthRefundFailed();
   }
 
   function _persistDesertL1CallHash(address toAddress, uint32 assetIndex, uint128 baseAmount) internal {
@@ -1038,6 +1086,11 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     }
   }
 
+  /// @inheritdoc IZkLighter
+  function l1CallProxy() external view returns (address) {
+    return _l1CallProxy;
+  }
+
   function fulfillCoreL1Call(address l2Sender_, address target, uint256 value, uint256 msgNonce, bytes calldata data) external {
     delegateAdditional();
   }
@@ -1053,6 +1106,26 @@ contract ZkLighter is IZkLighter, Storage, ReentrancyGuardUpgradeable, Extendabl
     bytes calldata data
   ) external {
     delegateAdditional();
+  }
+
+  /// @inheritdoc IZkLighter
+  function lockTokens(address token, uint256 amount) external {
+    delegateAdditional();
+  }
+
+  /// @inheritdoc IZkLighter
+  function releaseTokens(address token, address to, uint256 amount) external {
+    delegateAdditional();
+  }
+
+  /// @inheritdoc IZkLighter
+  function transferEscrow(address token, address newManager) external {
+    delegateAdditional();
+  }
+
+  /// @inheritdoc IZkLighter
+  function escrowedTokens(address escrowManager, address token) external view returns (uint256) {
+    return tokenVaultEscrowedTokens[escrowManager][token];
   }
 
   function setGasParams(uint32 _maxGasLimit, uint112 _baseFeeOverhead, uint112 _baseFeeScalar) external {

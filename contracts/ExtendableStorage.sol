@@ -102,4 +102,12 @@ contract ExtendableStorage {
 
   /// @dev EVM-originated L1-call Merkle roots persisted when batches verify.
   mapping(uint64 batchNumber => bytes32 root) internal _evmL1CallsRoots;
+
+  /// @dev ERC-20 escrow held by ZkLighter on behalf of L1 escrow managers.
+  /// The outer key is the manager (L1InteropManager or an L1 escrow gateway)
+  /// and the inner key is the canonical L1 token.
+  mapping(address escrowManager => mapping(address token => uint256 amount)) internal tokenVaultEscrowedTokens;
+
+  /// @dev Stateless proxy through which authenticated L2-to-L1 calls execute.
+  address internal _l1CallProxy;
 }

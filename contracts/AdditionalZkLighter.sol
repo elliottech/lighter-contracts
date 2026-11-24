@@ -4,13 +4,17 @@ pragma solidity 0.8.25;
 
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IEvents.sol";
 import "./interfaces/IZkLighter.sol";
-import {IL1CoreMessaging} from "./interfaces/IL1CoreMessaging.sol";
 import "./lib/TxTypes.sol";
 import "./Storage.sol";
 import "./ExtendableStorage.sol";
 import {L2_SENDER_TOFFSET} from "./Constants.sol";
+import {IL1CoreMessaging} from "./interfaces/IL1CoreMessaging.sol";
+import {IL1InteropManager, CoreAssetL1Config} from "./interfaces/IL1InteropManager.sol";
+import {IL1CallProxy} from "./interfaces/IL1CallProxy.sol";
 
 /// @title zkLighter Additional Contract
 /// @notice zkLighter Contract delegates some of its functionality to this contract
@@ -22,13 +26,18 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   error AdditionalZkLighter_L1CallHashNotReady();
   error AdditionalZkLighter_L1CallHashAlreadyExists();
   error AdditionalZkLighter_L1CallAlreadyFulfilled();
+  error AdditionalZkLighter_L2SenderZero();
   error AdditionalZkLighter_L2SenderNotZero();
   error AdditionalZkLighter_CannotExecuteToSelf();
-  error AdditionalZkLighter_L1CallFailed();
   error AdditionalZkLighter_BatchNotExecuted();
   error AdditionalZkLighter_NoEvmL1CallsRoot();
   error AdditionalZkLighter_InvalidEvmL1CallProof();
   error AdditionalZkLighter_InvalidPubdataLength();
+  error AdditionalZkLighter_AssetNotActive();
+  error AdditionalZkLighter_GatewayNotSelected();
+  error AdditionalZkLighter_RecipientAddressInvalid();
+  error AdditionalZkLighter_InvalidDepositAmount();
+  error AdditionalZkLighter_AmountMismatch();
   error AdditionalZkLighter_CannotCreateWithRecipient();
   error AdditionalZkLighter_GasLimitTooHigh();
   error AdditionalZkLighter_GasLimitTooLow();
@@ -36,6 +45,11 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   error AdditionalZkLighter_InsufficientMsgValue();
   error AdditionalZkLighter_RefundFailed();
   error AdditionalZkLighter_FeeTransferFailed();
+  error AdditionalZkLighter_ReentrantCall();
+  error ZkLighter_TokenVaultInvalidAddress();
+  error ZkLighter_TokenVaultInvalidAmount();
+  error ZkLighter_TokenVaultInsufficientEscrow();
+  error ZkLighter_TokenVaultBalanceShortfall();
 
   event NewEvmPriorityRequest(
     uint64 indexed requestId,
@@ -68,6 +82,90 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   modifier onlyCoreMessaging() {
     if (msg.sender != coreMessaging) revert AdditionalZkLighter_OnlyCoreMessaging();
     _;
+  }
+
+  /// @notice Pull tokens into the bridge vault and credit the caller.
+  function lockTokens(address token, uint256 amount) external nonReentrant {
+    if (token == address(0)) revert ZkLighter_TokenVaultInvalidAddress();
+    if (amount == 0) revert ZkLighter_TokenVaultInvalidAmount();
+
+    IERC20 erc20 = IERC20(token);
+    uint256 balanceBefore = erc20.balanceOf(address(this));
+    SafeERC20.safeTransferFrom(erc20, msg.sender, address(this), amount);
+    uint256 balanceAfter = erc20.balanceOf(address(this));
+    if (balanceAfter - balanceBefore < amount) {
+      revert ZkLighter_TokenVaultBalanceShortfall();
+    }
+
+    tokenVaultEscrowedTokens[msg.sender][token] += amount;
+    emit TokensLocked(msg.sender, token, amount);
+  }
+
+  /// @notice Release tokens from the caller's bridge-vault escrow.
+  function releaseTokens(address token, address to, uint256 amount) external nonReentrant {
+    if (token == address(0) || to == address(0)) revert ZkLighter_TokenVaultInvalidAddress();
+    if (amount == 0) revert ZkLighter_TokenVaultInvalidAmount();
+
+    uint256 escrow = tokenVaultEscrowedTokens[msg.sender][token];
+    if (escrow < amount) revert ZkLighter_TokenVaultInsufficientEscrow();
+    unchecked {
+      tokenVaultEscrowedTokens[msg.sender][token] = escrow - amount;
+    }
+
+    SafeERC20.safeTransfer(IERC20(token), to, amount);
+    emit TokensReleased(msg.sender, token, to, amount);
+  }
+
+  /// @notice Reassign all of the caller's bridge-vault escrow for a token.
+  function transferEscrow(address token, address newManager) external nonReentrant {
+    if (token == address(0) || newManager == address(0)) revert ZkLighter_TokenVaultInvalidAddress();
+
+    uint256 escrow = tokenVaultEscrowedTokens[msg.sender][token];
+    if (escrow == 0) revert ZkLighter_TokenVaultInvalidAmount();
+    tokenVaultEscrowedTokens[msg.sender][token] = 0;
+    tokenVaultEscrowedTokens[newManager][token] += escrow;
+
+    emit EscrowTransferred(msg.sender, newManager, token, escrow);
+  }
+
+  /// @notice Deposit USDC to Lighter for multiple users
+  /// @param _amount Array of USDC Token amounts
+  /// @param _to Array of receiver L1 addresses
+  /// @param _accountIndex Array of account index values, will be used in the future
+  function depositBatch(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external nonReentrant onlyActive {
+    if (_amount.length != _to.length || _amount.length != _accountIndex.length || _amount.length == 0 || _amount.length > MAX_BATCH_DEPOSIT_LENGTH) {
+      revert AdditionalZkLighter_Error();
+    }
+
+    // Get token config
+    address l1InteropManager = address(IL1CoreMessaging(coreMessaging).INTEROP_MANAGER());
+    CoreAssetL1Config memory cfg = IL1InteropManager(l1InteropManager).getAssetConfig(USDC_ASSET_INDEX);
+    if (cfg.l1Token == address(0)) revert AdditionalZkLighter_AssetNotActive();
+    if (cfg.l1Gateway == address(0)) revert AdditionalZkLighter_GatewayNotSelected();
+
+    // Perform address and amount checks
+    uint256 totalAmount = 0;
+    uint64[] memory baseAmounts = new uint64[](_amount.length);
+    for (uint256 i = 0; i < _amount.length; ++i) {
+      if (_to[i] == address(0)) revert AdditionalZkLighter_RecipientAddressInvalid();
+      if (_amount[i] == 0 || _amount[i] % cfg.tickSize != 0) revert AdditionalZkLighter_InvalidDepositAmount();
+      totalAmount += uint256(_amount[i]);
+      baseAmounts[i] = SafeCast.toUint64(uint256(_amount[i]) / uint256(cfg.tickSize));
+    }
+
+    // Perform transfers and corresponding amount checks
+    IERC20 token = IERC20(cfg.l1Token);
+    uint256 balanceBefore = token.balanceOf(address(this));
+    SafeERC20.safeTransferFrom(token, msg.sender, address(this), totalAmount);
+    if (token.balanceOf(address(this)) != balanceBefore + totalAmount) revert AdditionalZkLighter_AmountMismatch();
+
+    // Gateway selection is finalized before batch deposits are accepted.
+    // The reentrancy guard blocks L1 call fulfillment while tokens are pulled.
+    address escrowManager = cfg.l1Gateway;
+    tokenVaultEscrowedTokens[escrowManager][address(token)] += totalAmount;
+    emit TokensLocked(escrowManager, address(token), totalAmount);
+
+    IL1CoreMessaging(coreMessaging).registerBatchDeposit(msg.sender, _to, baseAmounts);
   }
 
   function updateCoreStateRoot(
@@ -169,7 +267,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     uint8 _pubdataType,
     bytes calldata _priorityRequest,
     bytes calldata _pubDataWithMetadata
-  ) external payable onlyCoreMessaging {
+  ) external payable onlyCoreMessaging onlyActive {
     addPriorityRequest(_sender, _pubdataType, _priorityRequest, _pubDataWithMetadata);
   }
 
@@ -256,6 +354,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   /// @param msgNonce The nonce of the transaction.
   /// @param data The data to send with the L1 transaction.
   function fulfillCoreL1Call(address _l2Sender, address to, uint256 value, uint256 msgNonce, bytes calldata data) external {
+    // This fn won't claim the re-entrancy lock, but it will fail if it is
+    // already claimed.
+    if (_reentrancyGuardEntered()) revert AdditionalZkLighter_ReentrantCall();
+
     bytes32 l1CallHash = _computeL1CallHash(_l2Sender, to, value, msgNonce, data);
     if (_l1CallStatus[l1CallHash] == L1CallStatus.Fulfilled) revert AdditionalZkLighter_L1CallAlreadyFulfilled();
     if (_l1CallStatus[l1CallHash] != L1CallStatus.Ready) revert AdditionalZkLighter_L1CallHashNotReady();
@@ -283,6 +385,10 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
     uint256 msgNonce,
     bytes calldata data
   ) external {
+    // This fn won't claim the re-entrancy lock, but it will fail if it is
+    // already claimed.
+    if (_reentrancyGuardEntered()) revert AdditionalZkLighter_ReentrantCall();
+
     if (batchNumber > executedBatchesCount) revert AdditionalZkLighter_BatchNotExecuted();
 
     bytes32 root = _evmL1CallsRoots[batchNumber];
@@ -328,6 +434,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
   }
 
   function _fulfillL1Call(bytes32 l1CallHash, address _l2Sender, address to, uint256 value, bytes calldata data) internal {
+    if (_l2Sender == address(0)) revert AdditionalZkLighter_L2SenderZero();
     if (l2Sender() != address(0)) revert AdditionalZkLighter_L2SenderNotZero(); // Prevents reentrancy
     if (to == address(this)) revert AdditionalZkLighter_CannotExecuteToSelf();
 
@@ -337,8 +444,7 @@ contract AdditionalZkLighter is IEvents, Storage, ReentrancyGuardUpgradeable, Ex
       tstore(L2_SENDER_TOFFSET, _l2Sender)
     }
 
-    (bool success, ) = to.call{value: value}(data);
-    if (!success) revert AdditionalZkLighter_L1CallFailed();
+    IL1CallProxy(_l1CallProxy).execute{value: value}(to, data);
 
     assembly {
       tstore(L2_SENDER_TOFFSET, 0)

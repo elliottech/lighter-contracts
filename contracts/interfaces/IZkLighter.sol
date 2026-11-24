@@ -138,6 +138,18 @@ interface IZkLighter is IEvents {
   /// @notice Thrown when rollup balance difference (before and after transfer) is bigger than `_maxAmount`
   error ZkLighter_RollUpBalanceBiggerThanMaxAmount();
 
+  /// @notice Thrown when a token-vault address is invalid.
+  error ZkLighter_TokenVaultInvalidAddress();
+
+  /// @notice Thrown when a token-vault amount is zero.
+  error ZkLighter_TokenVaultInvalidAmount();
+
+  /// @notice Thrown when a manager tries to use more escrow than it owns.
+  error ZkLighter_TokenVaultInsufficientEscrow();
+
+  /// @notice Thrown when fewer tokens reach the vault than requested.
+  error ZkLighter_TokenVaultBalanceShortfall();
+
   /// @notice Thrown when verifyBatch is called on a batch which is not yet committed
   error ZkLighter_CannotVerifyNonCommittedBatch();
 
@@ -192,6 +204,12 @@ interface IZkLighter is IEvents {
   /// @notice Thrown when setCoreMessaging is called with an invalid address
   error ZkLighter_InvalidCoreMessagingAddress();
 
+  /// @notice Deposit USDC to Lighter for multiple users
+  /// @param _amount Array of USDC Token amounts
+  /// @param _to Array of receiver L1 addresses
+  /// @param _accountIndex Array of account index values, will be used in the future
+  function depositBatch(uint64[] calldata _amount, address[] calldata _to, uint48[] calldata _accountIndex) external;
+
   /// @notice Thrown when trying to append blobs to an already verified batch
   error ZkLighter_CannotAppendBlobsToVerifiedBatch();
 
@@ -210,6 +228,9 @@ interface IZkLighter is IEvents {
   /// @notice Thrown when a desert-mode EVM batch does not strictly extend the EVM block number
   error ZkLighter_DesertNonIncreasingEvmBlockNumber();
 
+  error ZkLighter_CallerNotInteropManager();
+  error ZkLighter_EthRefundFailed();
+
   /// @notice Checks if Desert mode must be entered. If true - enters desert mode and emits DesertMode event
   /// @dev Desert mode must be entered in case of current L1 block timestamp is higher than the oldest priority request expiration timestamp
   /// @return bool Flag that is true if the desert mode must be entered
@@ -227,6 +248,10 @@ interface IZkLighter is IEvents {
   /// @param _n Number of outstanding priority requests to be cancelled
   /// @param _priorityPubData Array of outstanding priority requests to be cancelled
   function cancelOutstandingDepositsForDesertMode(uint64 _n, bytes[] calldata _priorityPubData) external;
+
+  /// @notice Pays an authenticated EVM account's refund from the native ETH escrow.
+  /// @dev Only L1InteropManager may call, after consuming the owner's claim.
+  function payEvmAccountEthRefund(address recipient, uint128 baseAmount) external;
 
   /// @notice Reverts unverified batches
   /// @param _batchesToRevert Array of batches to be reverted
@@ -297,6 +322,9 @@ interface IZkLighter is IEvents {
 
   function l2Sender() external view returns (address);
 
+  /// @notice Stateless proxy used as the caller for authenticated L2-to-L1 calls.
+  function l1CallProxy() external view returns (address);
+
   /// @notice Returns the last account index tracked by ZkLighter before account registration moved to L1CoreMessaging.
   /// @dev Read once by L1CoreMessagingInit to seed its own account counter; not updated afterwards.
   function DEPRECATED_lastAccountIndex() external view returns (uint48);
@@ -326,6 +354,18 @@ interface IZkLighter is IEvents {
     uint256 msgNonce,
     bytes calldata data
   ) external;
+
+  /// @notice Pull tokens from the caller into the bridge and credit the caller's escrow accounting.
+  function lockTokens(address token, uint256 amount) external;
+
+  /// @notice Release tokens from the caller's escrow accounting to a recipient.
+  function releaseTokens(address token, address to, uint256 amount) external;
+
+  /// @notice Reassign all of the caller's escrow for a token without moving tokens.
+  function transferEscrow(address token, address newManager) external;
+
+  /// @notice Return the bridge-vault escrow attributed to a manager and token.
+  function escrowedTokens(address escrowManager, address token) external view returns (uint256);
 
   function addPriorityRequestExt(
     address _sender,

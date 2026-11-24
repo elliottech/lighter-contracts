@@ -16,6 +16,7 @@ struct CoreAssetL1Config {
 
 interface IL1InteropManager {
   function sendToCore(uint32 _assetIndex, address to, uint256 amount, TxTypes.RouteType routeType) external payable;
+  function sendToCore(uint32 _assetIndex, address to, bool isL1Account, uint256 amount, TxTypes.RouteType routeType) external payable;
   function linkEvmNativeToken(uint32 assetIndex, address evmToken, uint256 gasLimit) external payable;
 
   function selectL1NativeGatewayPair(
@@ -43,6 +44,10 @@ interface IL1InteropManager {
   function finalizeEvmNativeGatewayPairOnL1(uint32 assetIndex, address l1Gateway, address l1Wrapper) external;
 
   function receiveFromCore(uint32 assetIndex, address to, uint128 baseAmount) external;
+  function receiveEvmAccountRefund(address evmAddress, uint32 assetIndex, uint128 baseAmount) external;
+  function creditEvmAccountRefundForDesert(address evmAddress, uint32 assetIndex, uint128 baseAmount) external;
+  function claimEvmAccountRefund(uint32 assetIndex, uint64 claimNonce, address recipient) external;
+  function evmAccountRefunds(address evmAddress, uint32 assetIndex) external view returns (uint128 baseAmount, uint64 claimNonce);
   function isRegisteredOnL1(uint32 assetIndex) external view returns (bool);
   function getAssetConfig(uint32 assetIndex) external view returns (CoreAssetL1Config memory);
 }

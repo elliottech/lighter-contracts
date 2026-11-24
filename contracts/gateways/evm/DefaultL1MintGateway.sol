@@ -35,7 +35,7 @@ contract DefaultL1MintGateway is DefaultMintGatewayBase, IL1MintGateway {
   }
 
   function _isCounterpartSender() internal view override returns (bool) {
-    return msg.sender == address(ZK_LIGHTER) && ZK_LIGHTER.l2Sender() == COUNTERPART_GATEWAY;
+    return msg.sender == ZK_LIGHTER.l1CallProxy() && ZK_LIGHTER.l2Sender() == COUNTERPART_GATEWAY;
   }
 
   function sendTokens(address token, address to, uint256 amount, uint256 gasLimit) external payable override nonReentrant {

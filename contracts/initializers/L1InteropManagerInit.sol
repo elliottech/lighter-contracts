@@ -29,7 +29,7 @@ contract L1InteropManagerInit is L1InteropManager {
     )
   {}
 
-  function initialize(bytes calldata data) external initializer {
+  function initialize(bytes calldata data) external override initializer {
     IGovernance governance = abi.decode(data, (IGovernance));
     L1InteropManagerStorage storage $ = _getL1InteropManagerStorage();
     $.governance = governance;

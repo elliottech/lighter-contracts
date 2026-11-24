@@ -1,2 +1,1 @@
 @openzeppelin/=node_modules/@openzeppelin/
-openvm-solidity-sdk/=lib/openvm-solidity-sdk/src/

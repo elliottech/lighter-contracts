@@ -44,6 +44,7 @@ library TxTypes {
   uint8 constant PriorityPubDataTypeL1RegisterEvmNativeAsset = 54;
   uint8 constant PriorityPubDataTypeL1LinkEvmWrapper = 55;
   uint8 constant PriorityPubDataTypeL1LinkL1Wrapper = 56;
+  uint8 constant PriorityPubDataTypeL1DepositToEvmAccount = 57;
   uint8 constant PriorityPubDataTypeL1SendToEvm = 128;
   uint8 constant PriorityPubDataTypeL1WithdrawToL1Address = 129;
 
@@ -63,6 +64,7 @@ library TxTypes {
   }
 
   uint256 internal constant DEPOSIT_PUB_DATA_SIZE = 40;
+  uint256 internal constant DEPOSIT_TO_EVM_ACCOUNT_PUB_DATA_SIZE = 34;
 
   /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
   /*                    L1 TO CORE MESSAGES                     */
@@ -93,7 +95,6 @@ library TxTypes {
   }
 
   /// @notice Read deposit fields from calldata for desert mode cancellation
-  /// Layout: type(1) | accountIndex(6) | toAddress(20) | assetIndex(4) | routeType(1) | baseAmount(8)
   function readDepositFromCalldata(
     bytes calldata _data
   ) internal pure returns (uint48 accountIndex, address toAddress, uint32 assetIndex, uint64 baseAmount) {
@@ -101,6 +102,37 @@ library TxTypes {
     toAddress = Bytes.unsafeReadAddressAt(_data, 0x07);
     assetIndex = Bytes.unsafeReadU32At(_data, 0x1b);
     baseAmount = Bytes.unsafeReadU64At(_data, 0x20);
+  }
+
+  /// @notice Serialize an L1-funded deposit to an EVM-controlled Core account.
+  /// Layout: type(1) | evmAddress(20) | assetIndex(4) | routeType(1) | baseAmount(8) = 34 bytes
+  /// @param routeType Caller must provide an in-bounds RouteType enum value.
+  function writeDepositToEvmAccountPubDataForPriorityQueue(
+    address evmAddress,
+    uint32 assetIndex,
+    RouteType routeType,
+    uint64 baseAmount
+  ) internal pure returns (bytes memory buf) {
+    assembly {
+      buf := mload(0x40)
+      mstore(buf, 0x22)
+      let ptr := add(buf, 0x20)
+      mstore8(ptr, PriorityPubDataTypeL1DepositToEvmAccount)
+      mstore(add(ptr, 0x01), shl(0x60, evmAddress))
+      mstore(add(ptr, 0x15), shl(0xe0, assetIndex))
+      mstore(add(ptr, 0x19), shl(0xf8, routeType))
+      mstore(add(ptr, 0x1a), shl(0xc0, baseAmount))
+      mstore(0x40, add(buf, 0x42))
+    }
+  }
+
+  /// @notice Read an EVM-account deposit from calldata for desert mode cancellation.
+  function readDepositToEvmAccountFromCalldata(
+    bytes calldata _data
+  ) internal pure returns (address evmAddress, uint32 assetIndex, uint64 baseAmount) {
+    evmAddress = Bytes.unsafeReadAddressAt(_data, 0x01);
+    assetIndex = Bytes.unsafeReadU32At(_data, 0x15);
+    baseAmount = Bytes.unsafeReadU64At(_data, 0x1a);
   }
 
   /// @notice Serialize withdraw pubData
